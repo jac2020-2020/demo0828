@@ -18,6 +18,11 @@ const router = createRouter({
             component: () => import('@/pages/chat/ConversationPage.vue'),
         },
         {
+            path: '/voice-call',
+            name: 'VoiceCall',
+            component: () => import('@/pages/chat/VoiceCallPage.vue'),
+        },
+        {
             path: '/discover',
             name: 'Discover',
             component: () => import('@/pages/discover/DiscoverPage.vue'),
@@ -31,6 +36,11 @@ const router = createRouter({
             path: '/work/:id',
             name: 'WorkDetail',
             component: () => import('@/pages/me/WorkDetailPage.vue'),
+        },
+        {
+            path: '/music-player',
+            name: 'MusicPlayer',
+            component: () => import('@/pages/music/MusicPlayerPage.vue'),
         },
     ],
 });
