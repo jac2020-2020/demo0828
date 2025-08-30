@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="LoneIn">
+    <meta name="format-detection" content="telephone=no">
+    <title>LoneIn - 让孤独不再寂寞</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            background-color: #000;
+            color: #fff;
+            overflow-x: hidden;
+        }
+        
+        #app {
+            height: 100%;
+            width: 100%;
+        }
+        
+        /* iOS安全区域适配 */
+        .safe-area-top {
+            padding-top: env(safe-area-inset-top);
+        }
+        
+        .safe-area-bottom {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        
+        /* 防止iOS橡皮筋效果 */
+        body {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+  <script type="module" crossorigin src="/assets/index-bf26fcf4.js"></script>
+  <link rel="stylesheet" href="/assets/index-094322fc.css">
+</head>
+<body>
+    <div id="app"></div>
+    
+</body>
+</html> 

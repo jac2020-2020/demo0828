@@ -1,0 +1,11 @@
+var s=Object.defineProperty;var n=(t,e,r)=>e in t?s(t,e,{enumerable:!0,configurable:!0,writable:!0,value:r}):t[e]=r;var a=(t,e,r)=>(n(t,typeof e!="symbol"?e+"":e,r),r);import{c}from"./createLucideIcon-6f8267e0.js";/**
+ * @license lucide-vue-next v0.542.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const g=c("play",[["path",{d:"M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z",key:"10ikf1"}]]);/**
+ * @license lucide-vue-next v0.542.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const h=c("share-2",[["circle",{cx:"18",cy:"5",r:"3",key:"gq8acd"}],["circle",{cx:"6",cy:"12",r:"3",key:"w7nqdw"}],["circle",{cx:"18",cy:"19",r:"3",key:"1xt0gg"}],["line",{x1:"8.59",x2:"15.42",y1:"13.51",y2:"17.49",key:"47mynk"}],["line",{x1:"15.41",x2:"8.59",y1:"6.51",y2:"10.49",key:"1n3mei"}]]);class i{constructor(){a(this,"config",null)}init(e){this.config=e}async uploadSharedMusic(e){try{const r=this.generateShareId(),o={id:r,title:e.title||"未命名音乐",artist:e.artist||"匿名用户",imageUrl:e.imageUrl||"",audioUrl:e.audioUrl||"",lyrics:e.lyrics||e.prompt||"",prompt:e.prompt||"",createdAt:new Date().toISOString(),sharedBy:e.sharedBy||"匿名用户"};if((await this.mockUploadToCOS(r,o)).success)return console.log("音乐数据上传成功:",r),r;throw new Error("上传失败")}catch(r){throw console.error("上传音乐分享数据失败:",r),r}}async getSharedMusic(e){try{return await this.mockDownloadFromCOS(e)}catch(r){return console.error("获取分享音乐数据失败:",r),null}}generateShareLink(e){return`${window.location.origin}/share/music/${e}`}generateShareId(){const e=Date.now().toString(36),r=Math.random().toString(36).substring(2);return`music_${e}_${r}`}async mockUploadToCOS(e,r){return await new Promise(o=>setTimeout(o,1e3)),localStorage.setItem(`shared_music_${e}`,JSON.stringify(r)),{success:!0}}async mockDownloadFromCOS(e){await new Promise(o=>setTimeout(o,500));const r=localStorage.getItem(`shared_music_${e}`);return r?JSON.parse(r):null}}const l=new i;l.init({secretId:"your-secret-id",secretKey:"your-secret-key",bucket:"your-bucket-name",region:"ap-beijing"});export{g as P,h as S,l as c};

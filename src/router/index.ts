@@ -42,6 +42,11 @@ const router = createRouter({
             name: 'MusicPlayer',
             component: () => import('@/pages/music/MusicPlayerPage.vue'),
         },
+        {
+            path: '/share/music/:shareId',
+            name: 'SharedMusic',
+            component: () => import('@/pages/share/SharedMusicPage.vue'),
+        },
     ],
 });
 

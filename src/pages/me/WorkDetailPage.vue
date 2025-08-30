@@ -441,6 +441,7 @@ onMounted(() => {
     border-radius: 20px;
     color: #ffffff;
     font-size: 14px;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
     padding: 10px 16px;
     outline: none;
 }

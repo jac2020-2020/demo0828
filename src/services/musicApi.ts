@@ -60,6 +60,23 @@ export interface MusicFetchResponse {
     };
 }
 
+// 歌词时间线接口
+export interface LyricsAlignment {
+    end_s: number;
+    p_align: number;
+    start_s: number;
+    success: boolean;
+    word: string;
+}
+
+export interface LyricsTimelineResponse {
+    status: string;
+    message: string;
+    data: {
+        alignment: LyricsAlignment[];
+    };
+}
+
 // 生成音乐
 export const generateMusic = async (lyrics: string, title?: string, tags?: string): Promise<string> => {
     try {
@@ -196,9 +213,46 @@ ${emotion}如歌声般美妙
     return lyricTemplate;
 };
 
+// 获取歌词时间线
+export const getLyricsTimeline = async (musicId: string): Promise<LyricsTimelineResponse> => {
+    try {
+        // 使用代理路径调用歌词API
+        const response = await axios.post<LyricsTimelineResponse>('/api/lyrics/alignedLyrics', {
+            music_id: musicId
+        }, {
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            timeout: 30000
+        });
+        
+        console.log('歌词时间线API响应:', response.data);
+        
+        if (response.data.status === 'SUCCESS') {
+            return response.data;
+        } else {
+            throw new Error('获取歌词时间线失败');
+        }
+    } catch (error: any) {
+        console.error('歌词时间线API调用错误:', error);
+        
+        if (error.response) {
+            console.error('错误响应:', error.response.data);
+            const errorMsg = error.response.data?.message || error.response.statusText || '未知错误';
+            throw new Error(`歌词时间线API错误 (${error.response.status}): ${errorMsg}`);
+        } else if (error.request) {
+            console.error('请求错误:', error.request);
+            throw new Error('网络连接错误，请检查网络连接或稍后重试');
+        } else {
+            throw new Error(`歌词时间线请求配置错误: ${error.message}`);
+        }
+    }
+};
+
 export default {
     generateMusic,
     fetchMusicResult,
     pollMusicResult,
-    generateLyrics
+    generateLyrics,
+    getLyricsTimeline
 }; 

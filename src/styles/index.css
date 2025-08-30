@@ -7,6 +7,14 @@
     font-display: swap;
 }
 
+@font-face {
+    font-family: 'XinYeNianTi';
+    src: url('@/assets/fonts/XinYeNianTi-2.otf') format('opentype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
 /* 全局样式重置 */
 * {
     margin: 0;

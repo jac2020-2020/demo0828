@@ -117,6 +117,7 @@ import { useRouter } from 'vue-router';
 import { Mic, Send } from 'lucide-vue-next';
 import TabBar from '@/components/TabBar.vue';
 import { useChatStore } from '@/store/chat';
+import { generatePoem } from '@/services/api';
 import type { Message, Work } from '@/types';
 
 
@@ -194,24 +195,64 @@ const generateWork = async (modality: 'poem' | 'image') => {
     showSuggestion.value = false;
     isGenerating.value = true;
     
-    // 模拟生成过程
-    setTimeout(() => {
-        isGenerating.value = false;
+    try {
+        // 实际生成内容，不再使用硬编码
+        if (modality === 'poem') {
+            // 生成诗词
+            const poemResult = await generatePoem(
+                messages.value.map(m => m.content).join('\n'),
+                '深思',
+                '人生感悟'
+            );
+            
+            generatedWork.value = {
+                id: Date.now().toString(),
+                user_id: 'current-user',
+                session_id: 'current',
+                source_message_id: messages.value[messages.value.length - 1].id,
+                modality,
+                title: poemResult.title,
+                desc: poemResult.content,
+                emotion_labels: ['深思', '感悟', '诗意'],
+                visibility: 'private',
+                created_at: new Date().toISOString(),
+            };
+        } else {
+            // 模拟图片生成延迟
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            generatedWork.value = {
+                id: Date.now().toString(),
+                user_id: 'current-user',
+                session_id: 'current',
+                source_message_id: messages.value[messages.value.length - 1].id,
+                modality,
+                title: '月下独酌',
+                desc: '一幅描绘月下独自思考的画作',
+                emotion_labels: ['孤独', '思念', '深夜'],
+                visibility: 'private',
+                created_at: new Date().toISOString(),
+            };
+        }
+    } catch (error) {
+        console.error('生成内容失败:', error);
+        // 如果生成失败，显示错误信息
         generatedWork.value = {
             id: Date.now().toString(),
             user_id: 'current-user',
             session_id: 'current',
             source_message_id: messages.value[messages.value.length - 1].id,
             modality,
-            title: modality === 'poem' ? '夜思' : '月下独酌',
-            desc: modality === 'poem' ? '夜深人静时\n思绪如潮涌\n孤独中寻找\n心灵的共鸣' : '一幅描绘月下独自思考的画作',
-            emotion_labels: ['孤独', '思念', '深夜'],
+            title: '生成失败',
+            desc: '抱歉，内容生成失败，请重试',
+            emotion_labels: ['系统'],
             visibility: 'private',
             created_at: new Date().toISOString(),
         };
-        
+    } finally {
+        isGenerating.value = false;
         nextTick(() => scrollToBottom());
-    }, 3000);
+    }
 };
 
 // 取消建议
@@ -592,6 +633,7 @@ onMounted(() => {
     border-radius: 20px;
     color: #ffffff;
     font-size: 16px;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
     padding: 10px 16px;
     outline: none;
 }
