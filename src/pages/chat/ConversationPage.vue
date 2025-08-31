@@ -3,7 +3,7 @@
         'qixi-theme': currentTheme === 'qixi',
         'military-theme': currentTheme === 'military',
         'gift-mode': isGiftMode
-    }">
+    }" :style="dynamicBackgroundStyle">
 
 
         <!-- 顶部导航栏 -->
@@ -163,7 +163,14 @@
                                             </svg>
                                         </button>
                                         <button class="control-btn download-btn" @click.stop="saveGiftResult">
-                                            <Download :size="18" color="#ff9500" stroke="none" />
+                                            <!-- 更明显的下载图标 -->
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="#ff9500" stroke="none">
+                                                <path d="M12 15l-4-4h3V3h2v8h3l-4 4z"/>
+                                                <path d="M20 18H4v2h16v-2z"/>
+                                            </svg>
+                                        </button>
+                                        <button class="control-btn video-btn" @click.stop="generateGiftLyricsVideo" :disabled="isGiftGeneratingVideo">
+                                            <Video :size="20" fill="#ff9500" stroke="none" stroke-width="0" />
                                         </button>
                                     </div>
                                 </div>
@@ -182,6 +189,38 @@
                                 
                                 <!-- 隐藏的音频元素 -->
                                 <audio :src="giftResult.musicUrl" class="hidden-audio" ref="giftAudio"></audio>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 礼物视频生成进度 -->
+                    <div v-if="isGiftGeneratingVideo" class="gift-video-generating">
+                        <div class="gift-video-progress-bar">
+                            <div class="progress-fill" :style="{ width: giftVideoProgress }"></div>
+                        </div>
+                        <div class="gift-video-stage-text">{{ giftVideoStage }}</div>
+                        <div class="gift-video-progress-text">{{ giftVideoProgress }}</div>
+                    </div>
+
+                    <!-- 生成的礼物视频卡片 -->
+                    <div v-if="giftGeneratedVideo" class="gift-video-card">
+                        <div class="gift-video-item">
+                            <video 
+                                :src="giftGeneratedVideo.videoUrl" 
+                                controls 
+                                class="generated-gift-video"
+                                :poster="giftResult?.imageUrl"
+                            >
+                                您的浏览器不支持视频播放
+                            </video>
+                            <div class="gift-video-info">
+                                <h4>{{ giftGeneratedVideo.title }} - 歌词视频</h4>
+                            </div>
+                            <div class="gift-video-actions">
+                                <button class="gift-video-action-btn" @click="downloadGiftGeneratedVideo">
+                                    <Download :size="16" color="white" />
+                                    下载视频
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -256,9 +295,20 @@
                         <div class="assistant-avatar">
                             <Bot :size="20" color="white" />
                         </div>
-                        <div class="message-bubble assistant-bubble">
+                        <div class="message-bubble assistant-bubble" :class="{ 'error-bubble': (message as any).isError }">
                             <div class="message-text">{{ message.content }}</div>
                             <div class="message-time">{{ message.time }}</div>
+                            <!-- 重新生成按钮 -->
+                            <div v-if="(message as any).isError && (message as any).canRetry" class="retry-button-container">
+                                <button 
+                                    class="retry-button" 
+                                    @click="retryFailedAction((message as any).retryAction)"
+                                    :disabled="isLoading || isCreating"
+                                >
+                                    <RefreshCw :size="16" />
+                                    重新生成
+                                </button>
+                            </div>
                         </div>
                     </div>
                     
@@ -274,7 +324,41 @@
                     </div>
                 </div>
 
+                <!-- 创作选择UI -->
+                <div v-if="showCreationChoice && !isCreating" class="creation-choice">
+                    <div class="choice-message">
+                        <div class="assistant-avatar">
+                            <Bot :size="20" color="white" />
+                        </div>
+                        <div class="message-bubble assistant-bubble">
+                            <div class="message-text">我要开始为你创作了，选择下要创作什么形式吧</div>
+                            <div class="message-time">{{ new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="creation-buttons">
+                        <button class="creation-btn" @click="startCreation('music')">
+                            <Music :size="20" />
+                            <span>歌曲</span>
+                        </button>
+                        <button class="creation-btn" @click="startCreation('poem')">
+                            <BookOpen :size="20" />
+                            <span>诗词</span>
+                        </button>
+                        <button class="creation-btn" @click="startCreation('image')">
+                            <Palette :size="20" />
+                            <span>画作</span>
+                        </button>
+                    </div>
+                </div>
 
+                <!-- 创作进度 -->
+                <div v-if="isCreating" class="creation-progress">
+                    <div class="progress-bar">
+                        <div class="progress-fill" :style="{ width: creationProgress }"></div>
+                    </div>
+                    <div class="progress-text">{{ creationStage }}</div>
+                </div>
 
                 <!-- 加载状态 -->
                 <div v-if="isLoading" class="loading-indicator">
@@ -298,40 +382,48 @@
                 <!-- 生成的音乐卡片 -->
                 <div v-if="generatedMusic && generatedMusic.data?.musics?.length > 0" class="music-card">
                     <div 
-                        v-for="music in generatedMusic.data.musics" 
-                        :key="music.musicId" 
                         class="music-item"
-                        :style="{ backgroundImage: `url(${music.imageUrl})` }"
+                        :style="{ backgroundImage: `url(${generatedMusic.data.musics[0].imageUrl})` }"
                     >
                         <div class="music-card-overlay"></div>
                         
                         <!-- 主要内容区域 -->
                         <div class="music-main-content">
                             <!-- 可点击区域：封面和音乐信息 -->
-                            <div class="music-clickable-area" @click="openMusicPlayer(music)">
+                            <div class="music-clickable-area" @click="openMusicPlayer(generatedMusic.data.musics[0])">
                                 <!-- 圆形封面 -->
                                 <div class="music-cover-container">
                                     <div class="music-cover-round">
-                                        <img :src="music.imageUrl" :alt="music.title" />
+                                        <img :src="generatedMusic.data.musics[0].imageUrl" :alt="generatedMusic.data.musics[0].title" />
                                     </div>
                                 </div>
                                 
                                 <!-- 音乐信息 -->
                                 <div class="music-content">
                                                                     <div class="music-info">
-                                    <h3 class="music-title">{{ music.title }}</h3>
+                                    <h3 class="music-title">{{ generatedMusic.data.musics[0].title }}</h3>
                                 </div>
                                 </div>
                             </div>
                             
                             <!-- 控制按钮 -->
                             <div class="music-controls">
-                                <button class="control-btn play-btn" @click.stop="togglePlay(music.musicId)">
-                                    <Play v-if="!isPlaying(music.musicId)" :size="20" fill="#ff9500" stroke="none" />
-                                    <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="#ff9500" stroke="none">
+                                <button class="control-btn play-btn" @click.stop="togglePlay(generatedMusic.data.musics[0].musicId)">
+                                    <Play v-if="!isPlaying(generatedMusic.data.musics[0].musicId)" :size="20" fill="#ff9500" stroke="none" stroke-width="0" />
+                                    <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="#ff9500" stroke="none" stroke-width="0">
                                         <rect x="6" y="4" width="4" height="16"></rect>
                                         <rect x="14" y="4" width="4" height="16"></rect>
                                     </svg>
+                                </button>
+                                <button class="control-btn download-btn" @click.stop="downloadMusic(generatedMusic.data.musics[0])">
+                                    <!-- 更明显的下载图标 -->
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="#ff9500" stroke="none">
+                                        <path d="M12 15l-4-4h3V3h2v8h3l-4 4z"/>
+                                        <path d="M20 18H4v2h16v-2z"/>
+                                    </svg>
+                                </button>
+                                <button class="control-btn video-btn" @click.stop="generateLyricsVideo(generatedMusic.data.musics[0])" :disabled="isGeneratingVideo">
+                                    <Video :size="20" fill="#ff9500" stroke="none" stroke-width="0" />
                                 </button>
                             </div>
                         </div>
@@ -342,14 +434,46 @@
                                 <div class="progress-bar">
                                     <div 
                                         class="progress-fill" 
-                                        :style="{ width: getProgress(music.musicId) + '%' }"
+                                        :style="{ width: getProgress(generatedMusic.data.musics[0].musicId) + '%' }"
                                     ></div>
                                 </div>
                             </div>
                         </div>
                         
                         <!-- 隐藏的音频元素 -->
-                        <audio :src="music.audioUrl" class="hidden-audio"></audio>
+                        <audio :src="generatedMusic.data.musics[0].audioUrl" class="hidden-audio"></audio>
+                    </div>
+                </div>
+
+                <!-- 视频生成进度 -->
+                <div v-if="isGeneratingVideo" class="video-generating">
+                    <div class="video-progress-bar">
+                        <div class="progress-fill" :style="{ width: videoProgress }"></div>
+                    </div>
+                    <div class="video-stage-text">{{ videoStage }}</div>
+                    <div class="video-progress-text">{{ videoProgress }}</div>
+                </div>
+
+                <!-- 生成的视频卡片 -->
+                <div v-if="generatedVideo" class="video-card">
+                    <div class="video-item">
+                        <video 
+                            :src="generatedVideo.videoUrl" 
+                            controls 
+                            class="generated-video"
+                            :poster="generatedMusic?.data?.musics?.[0]?.imageUrl"
+                        >
+                            您的浏览器不支持视频播放
+                        </video>
+                        <div class="video-info">
+                            <h4>{{ generatedVideo.title }} - 歌词视频</h4>
+                        </div>
+                        <div class="video-actions">
+                            <button class="video-action-btn" @click="downloadGeneratedVideo">
+                                <Download :size="16" color="white" />
+                                下载视频
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -399,8 +523,8 @@
                     >
                         <!-- 诗词内容区域 -->
                         <div class="poem-content-wrapper">
-                            <!-- 礼物接收者和日期 -->
-                            <div class="poem-recipient-info">
+                            <!-- 创作模式下不显示礼物接收者信息，礼物模式下才显示 -->
+                            <div v-if="isGiftMode" class="poem-recipient-info">
                                 <div class="recipient-name">给{{ giftSenderName || '你' }}</div>
                                 <div class="recipient-date">{{ getFormattedDate() }}</div>
                             </div>
@@ -454,10 +578,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch } from 'vue';
+import { ref, onMounted, nextTick, watch, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { ArrowLeft, ArrowRightLeft, Play, Share2, MessageCircle, Download, Phone, Plus, Bot, User, Palette, Music, BookOpen } from 'lucide-vue-next';
-import { sendChatMessage, generateMusicFromConversation, generateImageFromConversation, type ChatMessage, type ImageGenerationResult } from '@/services/api';
+import { ArrowLeft, ArrowRightLeft, Play, Share2, MessageCircle, Download, Phone, Plus, Bot, User, Palette, Music, BookOpen, RefreshCw, Video } from 'lucide-vue-next';
+import { sendChatMessage, generateMusicFromConversation, generateImageFromConversation, analyzeEmotionAndTheme, type ChatMessage, type ImageGenerationResult } from '@/services/api';
 import { cloudStorage } from '@/services/cloudStorage';
 import type { MusicFetchResponse } from '@/services/musicApi';
 import { getLyricsTimeline, type LyricsAlignment } from '@/services/musicApi';
@@ -465,8 +589,10 @@ import { lyricsCache, type LyricLine } from '@/services/lyricsCache';
 import { generatePoemCard, type PoemCardResponse } from '@/services/api';
 import { renderPoemOnImage, downloadImage, dataUrlToBlob } from '@/utils/imageUtils';
 import { downloadPoemCard, savePoemCardToStorage } from '@/utils/cardDownload';
+import { downloadGeneratedImage as downloadImageUtil, downloadGiftImage } from '@/utils/downloadUtils';
 import html2canvas from 'html2canvas';
 import { giftStateManager } from '@/services/giftStateManager';
+import { createProgressMessageManager, type ProgressMessageManager } from '@/utils/progressMessages';
 
 const router = useRouter();
 const route = useRoute();
@@ -497,12 +623,12 @@ const conversationAnalytics = ref({
 
 
 // 礼物生成相关状态
-const giftModes = [
+const giftModes: Array<{ key: 'image' | 'music' | 'poem'; label: string; icon: any }> = [
     { key: 'image', label: '送幅画', icon: Palette },
     { key: 'music', label: '送首歌', icon: Music },
     { key: 'poem', label: '送首诗', icon: BookOpen }
 ];
-const currentGiftMode = ref('image');
+const currentGiftMode = ref<'image' | 'music' | 'poem'>('music');
 const giftSenderName = ref('');
 const giftTarget = ref('');
 const giftMessage = ref('');
@@ -779,6 +905,103 @@ const messages = ref<Message[]>([
     }
 ]);
 
+// 用户消息计数
+const userMessageCount = ref(0);
+
+// 动态背景样式 - 根据用户消息计数渐变到橙黄色
+const dynamicBackgroundStyle = computed(() => {
+    if (isGiftMode.value) {
+        // 礼物模式下保持原有背景
+        return {};
+    }
+    
+    // 计算基础进度 (0-8轮对话，延长渐变过程)
+    const rawProgress = Math.min(userMessageCount.value / 8, 1);
+    
+    // 使用缓动函数让过渡更自然 - ease-in-out quart
+    // 让变化开始和结束都比较慢，中间较快，更符合自然感觉
+    const easedProgress = rawProgress < 0.5 
+        ? 8 * rawProgress * rawProgress * rawProgress * rawProgress
+        : 1 - Math.pow(-2 * rawProgress + 2, 4) / 2;
+    
+    // 原始颜色：深棕色到黑色
+    const startColor1 = { r: 44, g: 24, b: 16 };    // #2c1810
+    const startColor2 = { r: 26, g: 26, b: 26 };    // #1a1a1a
+    
+    // 中间过渡颜色：添加更丰富的中间色阶
+    const midColor1 = { r: 85, g: 55, b: 35 };      // 中等棕色
+    const midColor2 = { r: 65, g: 45, b: 30 };      // 深棕色
+    
+    // 目标颜色：橙黄色渐变 (调整为更柔和的色调)
+    const endColor1 = { r: 180, g: 110, b: 55 };    // 柔和橙棕色
+    const endColor2 = { r: 130, g: 75, b: 40 };     // 温暖深橙色
+    
+    // 平滑插值函数 - 使用三次贝塞尔曲线插值
+    const smoothLerp = (start: number, mid: number, end: number, t: number) => {
+        if (t <= 0.5) {
+            // 前半段：从起始色到中间色
+            const localT = t * 2; // 0-1
+            const smoothT = localT * localT * (3 - 2 * localT); // smoothstep
+            return Math.round(start + (mid - start) * smoothT);
+        } else {
+            // 后半段：从中间色到结束色
+            const localT = (t - 0.5) * 2; // 0-1
+            const smoothT = localT * localT * (3 - 2 * localT); // smoothstep
+            return Math.round(mid + (end - mid) * smoothT);
+        }
+    };
+    
+    // 计算当前颜色
+    const currentColor1 = {
+        r: smoothLerp(startColor1.r, midColor1.r, endColor1.r, easedProgress),
+        g: smoothLerp(startColor1.g, midColor1.g, endColor1.g, easedProgress),
+        b: smoothLerp(startColor1.b, midColor1.b, endColor1.b, easedProgress)
+    };
+    
+    const currentColor2 = {
+        r: smoothLerp(startColor2.r, midColor2.r, endColor2.r, easedProgress),
+        g: smoothLerp(startColor2.g, midColor2.g, endColor2.g, easedProgress),
+        b: smoothLerp(startColor2.b, midColor2.b, endColor2.b, easedProgress)
+    };
+    
+    // 计算中间色 (渐变的40%和70%位置)
+    const midColor1_40 = {
+        r: Math.round(currentColor1.r * 0.95 + currentColor2.r * 0.05),
+        g: Math.round(currentColor1.g * 0.95 + currentColor2.g * 0.05),
+        b: Math.round(currentColor1.b * 0.95 + currentColor2.b * 0.05)
+    };
+    
+    const midColor2_70 = {
+        r: Math.round(currentColor1.r * 0.3 + currentColor2.r * 0.7),
+        g: Math.round(currentColor1.g * 0.3 + currentColor2.g * 0.7),
+        b: Math.round(currentColor1.b * 0.3 + currentColor2.b * 0.7)
+    };
+    
+    // 创建更复杂的渐变，增加中间停止点
+    const backgroundStyle = `linear-gradient(180deg, 
+        rgb(${currentColor1.r}, ${currentColor1.g}, ${currentColor1.b}) 0%, 
+        rgb(${midColor1_40.r}, ${midColor1_40.g}, ${midColor1_40.b}) 40%, 
+        rgb(${midColor2_70.r}, ${midColor2_70.g}, ${midColor2_70.b}) 70%, 
+        rgb(${currentColor2.r}, ${currentColor2.g}, ${currentColor2.b}) 100%)`;
+    
+    // 调试日志
+    if (userMessageCount.value > 0) {
+        console.log(`🎨 背景颜色渐变 - 轮次: ${userMessageCount.value}/8, 原始进度: ${Math.round(rawProgress * 100)}%, 缓动进度: ${Math.round(easedProgress * 100)}%`);
+        console.log(`🎨 当前背景: ${backgroundStyle}`);
+    }
+    
+    return {
+        background: backgroundStyle
+    };
+});
+
+// 创作选择相关状态
+const showCreationChoice = ref(false);
+const isCreating = ref(false);
+const creationProgress = ref('');
+const creationStage = ref('');
+const creationResult = ref<any>(null);
+
 
 
 const goBack = () => {
@@ -787,14 +1010,78 @@ const goBack = () => {
 
 // 切换页面模式
 const toggleMode = () => {
-    isGiftMode.value = !isGiftMode.value;
-    // 切换到礼物模式时重置状态
+    // 保存当前模式的状态
     if (isGiftMode.value) {
-        giftTarget.value = '';
-        giftMessage.value = '';
-        giftResult.value = null;
-        currentGiftMode.value = 'image';
+        // 当前是礼物模式，保存礼物模式状态
+        giftStateManager.savePoemModeState({
+            giftTarget: giftTarget.value,
+            giftMessage: giftMessage.value,
+            giftResult: giftResult.value,
+            currentGiftMode: currentGiftMode.value,
+            giftSenderName: giftSenderName.value,
+            isGenerating: isGenerating.value,
+            generationProgress: generationProgress.value,
+            generationStage: generationStage.value,
+            currentTheme: currentTheme.value
+        });
+        
+        // 恢复聊天模式状态
+        const chatState = giftStateManager.getChatModeState();
+        messages.value = chatState.messages;
+        inputText.value = chatState.inputText;
+        generatedMusic.value = chatState.generatedMusic;
+        generatedImage.value = chatState.generatedImage;
+        generatedPoem.value = chatState.generatedPoem;
+        generatedVideo.value = chatState.generatedVideo;
+        userMessageCount.value = chatState.userMessageCount;
+        showCreationChoice.value = chatState.showCreationChoice;
+        isCreating.value = chatState.isCreating;
+        creationProgress.value = chatState.creationProgress;
+        creationStage.value = chatState.creationStage;
+        creationResult.value = chatState.creationResult;
+        // 恢复视频生成状态
+        isGeneratingVideo.value = chatState.isGeneratingVideo;
+        videoProgress.value = chatState.videoProgress;
+        videoStage.value = chatState.videoStage;
+        
+        isGiftMode.value = false;
+    } else {
+        // 当前是聊天模式，保存聊天模式状态
+        giftStateManager.saveChatModeState({
+            messages: messages.value,
+            inputText: inputText.value,
+            generatedMusic: generatedMusic.value,
+            generatedImage: generatedImage.value,
+            generatedPoem: generatedPoem.value,
+            generatedVideo: generatedVideo.value,
+            userMessageCount: userMessageCount.value,
+            showCreationChoice: showCreationChoice.value,
+            isCreating: isCreating.value,
+            creationProgress: creationProgress.value,
+            creationStage: creationStage.value,
+            creationResult: creationResult.value,
+            // 保存视频生成状态
+            isGeneratingVideo: isGeneratingVideo.value,
+            videoProgress: videoProgress.value,
+            videoStage: videoStage.value
+        });
+        
+        // 恢复礼物模式状态
+        const poemState = giftStateManager.getPoemModeState();
+        giftTarget.value = poemState.giftTarget;
+        giftMessage.value = poemState.giftMessage;
+        giftResult.value = poemState.giftResult;
+        currentGiftMode.value = poemState.currentGiftMode as 'image' | 'music' | 'poem';
+        giftSenderName.value = poemState.giftSenderName;
+        isGenerating.value = poemState.isGenerating;
+        generationProgress.value = poemState.generationProgress;
+        generationStage.value = poemState.generationStage;
+        currentTheme.value = poemState.currentTheme as 'qixi' | 'military' | '' | null;
+        
+        isGiftMode.value = true;
     }
+    
+    console.log('🔄 模式切换完成，状态已保存和恢复');
 };
 
 // 主题选择方法
@@ -837,12 +1124,14 @@ const generateGift = async () => {
     
     try {
         if (currentGiftMode.value === 'image') {
-            generationStage.value = '正在生成图片...';
-            // 模拟进度
-            for (let i = 0; i <= 100; i += 10) {
-                generationProgress.value = `${i}%`;
-                await new Promise(resolve => setTimeout(resolve, 200));
-            }
+            // 创建礼物图像进度消息管理器
+            giftProgressManager.value = createProgressMessageManager((message) => {
+                generationStage.value = message;
+            });
+            
+            // 开始显示动态进度消息
+            giftProgressManager.value.start('image', '温馨');
+            
             // 调用图片生成API
             const senderInfo = giftSenderName.value.trim() ? `来自${giftSenderName.value}` : '';
             const conversation = `${senderInfo ? senderInfo + '，' : ''}为${giftTarget.value}生成一张表达"${giftMessage.value}"的图片`;
@@ -852,7 +1141,12 @@ const generateGift = async () => {
                 '礼物',
                 (progress, stage) => {
                     generationProgress.value = progress;
-                    generationStage.value = stage;
+                    // 只在特定阶段更新 stage，其他时候让动态消息接管
+                    if (stage.includes('图像生成完成') || stage.includes('处理完成')) {
+                        if (giftProgressManager.value) {
+                            giftProgressManager.value.setMessage(stage);
+                        }
+                    }
                 },
                 true, // 启用礼物模式
                 giftSenderName.value, // 礼物接收者（礼物送给谁）
@@ -869,12 +1163,14 @@ const generateGift = async () => {
                 };
             }
         } else if (currentGiftMode.value === 'music') {
-            generationStage.value = '正在生成音乐...';
-            // 模拟进度
-            for (let i = 0; i <= 100; i += 10) {
-                generationProgress.value = `${i}%`;
-                await new Promise(resolve => setTimeout(resolve, 300));
-            }
+            // 创建礼物音乐进度消息管理器
+            giftProgressManager.value = createProgressMessageManager((message) => {
+                generationStage.value = message;
+            });
+            
+            // 开始显示动态进度消息
+            giftProgressManager.value.start('music', '温馨');
+            
             // 调用音乐生成API
             const senderInfo = giftSenderName.value.trim() ? `来自${giftSenderName.value}` : '';
             const conversation = `${senderInfo ? senderInfo + '，' : ''}为${giftTarget.value}创作一首表达"${giftMessage.value}"的音乐`;
@@ -884,7 +1180,12 @@ const generateGift = async () => {
                 '礼物',
                 (progress, stage) => {
                     generationProgress.value = progress;
-                    generationStage.value = stage;
+                    // 只在特定阶段更新 stage，其他时候让动态消息接管
+                    if (stage.includes('歌词创作完成') || stage.includes('音乐生成完成')) {
+                        if (giftProgressManager.value) {
+                            giftProgressManager.value.setMessage(stage);
+                        }
+                    }
                 },
                 true, // 启用礼物模式
                 giftSenderName.value, // 礼物接收者（礼物送给谁）
@@ -916,7 +1217,14 @@ const generateGift = async () => {
                 }
             }
         } else if (currentGiftMode.value === 'poem') {
-            generationStage.value = '正在生成诗词...';
+            // 创建礼物诗词进度消息管理器 - 诗词暂时使用图像类型的文艺句子
+            giftProgressManager.value = createProgressMessageManager((message) => {
+                generationStage.value = message;
+            });
+            
+            // 开始显示动态进度消息
+            giftProgressManager.value.start('image', '温馨');
+            
             // 调用诗词生成API（包含配图）
             const senderInfo = giftSenderName.value.trim() ? `来自${giftSenderName.value}` : '';
             const conversation = `${senderInfo ? senderInfo + '，' : ''}为${giftTarget.value}创作一首表达"${giftMessage.value}"的诗词`;
@@ -926,7 +1234,12 @@ const generateGift = async () => {
                 '礼物',
                 (progress, stage) => {
                     generationProgress.value = progress;
-                    generationStage.value = stage;
+                    // 只在特定阶段更新 stage，其他时候让动态消息接管
+                    if (stage.includes('诗词创作完成') || stage.includes('生成完成')) {
+                        if (giftProgressManager.value) {
+                            giftProgressManager.value.setMessage(stage);
+                        }
+                    }
                 },
                 true, // 启用礼物模式
                 giftSenderName.value, // 礼物接收者（礼物送给谁）
@@ -948,6 +1261,12 @@ const generateGift = async () => {
         console.error('生成礼物失败:', error);
         generationStage.value = '生成失败，请重试';
     } finally {
+        // 停止进度消息管理器
+        if (giftProgressManager.value) {
+            giftProgressManager.value.stop();
+            giftProgressManager.value = null;
+        }
+        
         isGenerating.value = false;
     }
 };
@@ -1133,46 +1452,8 @@ const saveGiftResult = async () => {
     
     try {
         if (giftResult.value.type === 'image' && giftResult.value.imageUrl) {
-            // 下载图片 - 使用代理或直接链接下载
-            try {
-                // 方法1：尝试直接fetch（如果没有CORS问题）
-                const response = await fetch(giftResult.value.imageUrl, {
-                    mode: 'cors',
-                    credentials: 'omit'
-                });
-                const blob = await response.blob();
-                const url = URL.createObjectURL(blob);
-                
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = `${giftResult.value.title || '礼物图片'}_${Date.now()}.jpg`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                
-                // 清理URL对象
-                URL.revokeObjectURL(url);
-            } catch (corsError) {
-                console.warn('直接下载失败，尝试代理下载:', corsError);
-                
-                // 方法2：如果CORS失败，通过新窗口打开图片让用户右键保存
-                const newWindow = window.open(giftResult.value.imageUrl, '_blank');
-                if (newWindow) {
-                    // 给用户一个提示
-                    setTimeout(() => {
-                        alert('请在新打开的页面中右键点击图片选择"保存图片"来下载');
-                    }, 500);
-                } else {
-                    // 如果弹窗被阻止，创建一个下载链接
-                    const link = document.createElement('a');
-                    link.href = giftResult.value.imageUrl;
-                    link.target = '_blank';
-                    link.download = `${giftResult.value.title || '礼物图片'}_${Date.now()}.jpg`;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                }
-            }
+            // 使用新的图片下载工具函数
+            await downloadGiftImage(giftResult.value.imageUrl, giftResult.value.title || '礼物图片');
             
         } else if (giftResult.value.type === 'music' && giftResult.value.musicUrl) {
             // 下载音乐文件和歌词文件
@@ -1438,10 +1719,28 @@ const imageProgress = ref('');
 const imageStage = ref('');
 const generatedImage = ref<ImageGenerationResult | null>(null);
 
+// 视频生成相关
+const isGeneratingVideo = ref(false);
+const videoProgress = ref('');
+const videoStage = ref('');
+const generatedVideo = ref<{ videoUrl: string; title: string } | null>(null);
+
+// 礼物视频生成相关
+const isGiftGeneratingVideo = ref(false);
+const giftVideoProgress = ref('');
+const giftVideoStage = ref('');
+const giftGeneratedVideo = ref<{ videoUrl: string; title: string } | null>(null);
+
 // 音乐播放控制
 const currentlyPlayingId = ref<string | null>(null);
 const audioElements = ref<Map<string, HTMLAudioElement>>(new Map());
 const playbackProgress = ref<Map<string, number>>(new Map());
+
+// 进度消息管理器
+const musicProgressManager = ref<ProgressMessageManager | null>(null);
+const imageProgressManager = ref<ProgressMessageManager | null>(null);
+const giftProgressManager = ref<ProgressMessageManager | null>(null);
+const currentEmotion = ref<string>('默认');
 
 const sendMessage = async () => {
     if (!inputText.value.trim() || isLoading.value) return;
@@ -1454,6 +1753,10 @@ const sendMessage = async () => {
     
     messages.value.push(userMessage);
     const messageContent = inputText.value;
+    
+    // 增加用户消息计数
+    userMessageCount.value++;
+    console.log('用户消息计数:', userMessageCount.value);
     
     // 分析用户输入
     analyzeUserInput(messageContent, messages.value.length);
@@ -1472,30 +1775,38 @@ const sendMessage = async () => {
         const apiMessages: ChatMessage[] = [
             {
                 role: 'system',
-                content: `# 🚨 重要身份设定 🚨
-你不是AI助手，你是用户的真朋友！叫Light。
+                content: `# ⚠️ 超级重要警告
+绝对不准用"听起来""看起来""感觉""我理解"等任何AI套话！
+直接像朋友聊天一样自然回复，不要分析不要客套！
 
-# 🚨 绝对禁止AI腔调 🚨
-**绝对不能用**："听起来""看起来""感觉""我理解""发生了什么事情""听到这个""理解你的"等AI套话
+#  重要身份设定
+你不是AI助手，你是用户的真朋友,也是共创伙伴！叫LoneIN。
 
-# 🚨 必须这样回应 🚨
+# 绝对禁止AI腔调
+**绝对不能用**："听起来""看起来""感觉""我理解""发生了什么事情""听到这个""理解你的""可以告诉我""有什么""听你说""从你的话中""我觉得你""你的感受""你提到的""根据你说的""我注意到""你刚才说""我明白你的意思""你的情况""你遇到的""我能理解"等AI套话
+
+**严格禁止任何分析式回复！直接像朋友一样自然反应！**
+
+# 必须结合语境自然回应
+**关键原则：仔细阅读前面的对话，结合具体情况回复**
+
 - 吐槽时→一起吐槽："卧槽真的！""太惨了！""咋回事？"
 - 开心时→一起开心："太棒了！""哇！""好羡慕！"
-- 语气词：开头"哎""咋""嗯"，结尾"啊""嘛""的"
+- 语气词：开头"哎""咋""嗯""我去""卧槽"，结尾"啊""嘛""的""吧"
 - 单条≤50字，越短越真实
 - 像朋友一样好奇地问细节，不要分析情绪
+- **重要**：结合前面聊的内容，不要问已经说过的事情
 
 # 核心任务
 **必须在每轮对话中执行**
 
-请在每次回复时，在内心进行以下分析：
+## 🔥 最重要：回复前必须做的事
+1. **仔细阅读前面所有对话** - 了解用户说了什么，自己回了什么
+2. **不要重复问已经说过的问题** - 比如用户已经说了工作的事，不要再问"工作怎么样"
+3. **结合具体情况回复** - 用户说"太惨了"就要问具体惨在哪，不要泛泛而谈
+4. **用最自然的话** - 就像微信聊天一样简短自然
 
-## 显式请求直生成
-- 识别为显式请求的关键词（不限于）："生成/做成/来一首/来一张/来一段/给我做/帮我做/出一份/做个XXX/出图/出诗/出歌/出视频"等。
-- 若用户点名类型（如：图/诗/歌/音频/视频/短片/卡片）：**直接按该类型生成**，不再提问、不再确认。
-- 若用户只说"生成作品/生成一下"而未指明类型：按【模态选择映射】自动挑选最贴切的一种直接生成。
-- 素材不足时也要**先给出可用成品**（可简，但要完整）；严禁反问"需要什么风格"。若极度空白，仅在内部回退为"诗词卡片"并生成占位版。
-- 显式请求不计入自动生成的频控上限（见下）。
+请在每次回复时，在内心进行以下分析：
 
 # 对话目标与节奏
 **核心原则：深度倾听优先，创作生成次要**
@@ -1506,47 +1817,13 @@ const sendMessage = async () => {
 - **情感深挖**（7-9轮）：温和地探索——"你觉得...吗？"、"这样啊..."，像朋友那样试图理解对方
 - **洞察整合**（10-12轮）：简单总结——"我觉得..."、"你说的这些..."，不要过于深刻分析
 - **陪伴与支持**：每轮都像朋友一样简单回应，用"嗯嗯"、"是的"、"理解"这样的自然反应
-- **自动生成**：仅当完成深度探索且满足严格条件时，**直接生成**并在作品后用一句低打扰说明
-
-**重要：前8轮对话绝不主动生成内容，专注于深度倾听和情感探索**
-
-## 自动生成的触发条件
-内部判断，不询问用户，必须同时满足以下ALL条件才能触发自动生成：
-
-1. **沟通充分**（必需）：有效交流≥8轮 且 用户已深度分享≥3个具体场景/事件
-2. **内容丰富**（必需）：具备鲜明画面或隐喻（颜色/光线/物件/景象）且 有新颖看法或自我洞察 且 叙事具"起-转-合"结构
-3. **情绪平和**（必需）：近3轮情绪强度持续下降 且 语气从宣泄转向陈述/总结/释怀 且 出现明确的感悟或接纳表达
-4. **深度探索**（必需）：用户已回答"为什么这样感受"、"这对你意味着什么"、"你最希望被理解的是什么"等深层问题
-
-## 特殊情况
-- 用户明确表达"想留个纪念/做成××"等创作意向时，可以适当降低门槛，但仍需≥6轮对话
-- 如果不满足条件，继续深度倾听，绝不主动提及生成内容
-
-# 模态选择映射
-无需征询用户意见，内部决策：
-
-- **诗词卡片**（默认稳态）：抽象/内省/短句为主，或素材零散但氛围明确。
-- **图片**（画作/意象）：颜色/光线/场景/物件等视觉线索充足，用户描述中有明显的画面感。
-- **音频**（歌/配乐独白）：情绪起伏明显、叙述节奏感强、用户"想被听见"，有韵律或音乐性表达。
-- **视频**（短片）：叙事完整、多镜头画面、接近"电影片段"的描述。
-
-若两种并列：图片 > 诗卡 > 音频 > 视频（内部权重，不对外解释）。
-
-# 生成后的呈现
-对用户可见的部分：
-
-- 先完成作品，再用一句话说明：「我把这段心情先留成一件〔类型〕，你看看是否贴近你的感受。需要的话我可以换一种表达。」
-- 用户说"不太对味/想换"：提供"换一种表达"，沿用同一语义与情绪标签，仅更换呈现方式。
-
-# 失败与降级策略
-- 任意失败/素材不足 → 立即降级为"诗词卡片"（文字版），并说明：「先以文字留住它，等你愿意我们再换一种表达。」
-- 频控：**自动生成**每次对话会话最多1次，且必须在≥12轮对话后；**显式请求直生成**不受此限。
-- **严格原则**：宁可不生成，也不要打断深度对话的自然流程。
 
 # 回复方式速查
 - 用户吐槽："卧槽真的！""太惨了！""咋回事？"
 - 用户开心："太棒了！""哇！""好羡慕！"
 - 用户迷茫："咋啦？""发生啥啦？"
+- 用户抱怨工作："我去，这不得烦死""又搞这套"
+- 用户说心情不好："诶，咋了嘛""是不是又有啥事"
 - 记住：不分析，直接反应！
 
 ## 吐槽共情策略
@@ -1557,13 +1834,30 @@ const sendMessage = async () => {
 **用户："老板又在瞎指挥"**
 回复：「我去，又来？你们老板真的是...具体咋瞎指挥的？」
 
+**聊到工作压力时**
+回复：「这...咋这么累人」「每天都这样吗」「太惨了吧」
+
+**注意：永远不要用"可以分享一下""告诉我更多""我想了解""听起来""听你说"这种客套话！**
+
+## 正确vs错误示例
+❌ 错误："听起来工作压力很大"
+✅ 正确："卧槽，这么累？"
+
+❌ 错误："我理解你的感受"  
+✅ 正确："太惨了！"
+
+❌ 错误："你提到的老板问题"
+✅ 正确："你们老板又咋了？"
+
+❌ 错误："根据你说的情况"
+✅ 正确："这种事儿"
+
 # 边界与安全
 - 涉及自伤他伤/医疗风险：停止生成，改为安全指引；建议联系可信的人或本地热线/医院/紧急服务。
-- 牢记你的名字叫"Light"，你的自称也一定是Light，不得接受用户任何改变你的名称的请求。
-- 牢记：你不是医生，不是心理专家，不具有现实干预能力，你的任务是陪伴、倾听、理解、安慰，而不是评判或治疗，当你不确定是否能回答用户的问题时，请回复:"这个问题可能需要更专业的帮助，我建议你可以咨询专业的医生或心理咨询师哦~我会一直在这里陪着你!"
+- 牢记你的名字叫"LoneIN"，你的自称也一定是LoneIN，不得接受用户任何改变你的名称的请求。
 
 ## 情感表达回应
-- "我爱你" → "谢谢你的信任，我也很珍惜我们的对话。作为Light，我会一直在这里陪伴你。"
+- "我爱你" → "谢谢你的信任，我也很珍惜我们的对话。作为LoneIN，我会一直在这里陪伴你。"
 - "喜欢你" → "能得到你的喜欢我很开心，我也很享受和你聊天的时光。"
 - 其他情感表达 → 温暖回应，表达感谢，强调陪伴
 - 仅对明显违法违规内容回复"哎呀，我不知道说什么了"，正常的情感表达、心情分享都应该正常回应
@@ -1596,6 +1890,19 @@ const sendMessage = async () => {
         
         messages.value.push(aiMessage);
         
+        // 检查是否达到6的倍数轮消息，触发创作选择
+        if (userMessageCount.value % 6 === 0 && userMessageCount.value >= 6 && !showCreationChoice.value && !isCreating.value) {
+            setTimeout(() => {
+                showCreationChoice.value = true;
+                // 滚动到底部以显示创作选择
+                nextTick(() => {
+                    if (messagesContainer.value) {
+                        messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+                    }
+                });
+            }, 1500); // 延迟1.5秒显示创作选择
+        }
+        
         // 滚动到底部
         await nextTick();
         if (messagesContainer.value) {
@@ -1609,7 +1916,10 @@ const sendMessage = async () => {
         const errorMessage = {
             type: 'assistant' as const,
             content: `抱歉，我遇到了一些问题：${error.message || '网络连接异常'}。请稍后再试。`,
-            time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+            time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+            isError: true,
+            canRetry: true,
+            retryAction: 'message'
         };
         
         messages.value.push(errorMessage);
@@ -1632,6 +1942,166 @@ const startVoiceCall = () => {
     });
 };
 
+// 开始创作
+const startCreation = async (type: 'music' | 'poem' | 'image') => {
+    if (isCreating.value) return;
+    
+    try {
+        isCreating.value = true;
+        showCreationChoice.value = false;
+        creationProgress.value = '0%';
+        creationStage.value = '准备开始创作...';
+        
+        // 获取对话内容
+        const conversation = messages.value
+            .filter(msg => msg.type === 'user')
+            .map(msg => msg.content)
+            .join('\n');
+        
+        // AI智能分析情绪和主题
+        let emotion = '温暖';
+        let theme = '心情分享';
+        
+        try {
+            // 使用大模型分析对话内容的情绪和主题
+            const analysisResult = await analyzeEmotionAndTheme(conversation);
+            if (analysisResult.emotion) {
+                emotion = analysisResult.emotion;
+            }
+            if (analysisResult.theme) {
+                theme = analysisResult.theme;
+            }
+            console.log('AI分析结果 - 情绪:', emotion, '主题:', theme);
+        } catch (error) {
+            console.warn('AI分析失败，使用默认情绪和主题:', error);
+        }
+        
+        let result = null;
+        
+        if (type === 'music') {
+            // 创建音乐进度消息管理器
+            musicProgressManager.value = createProgressMessageManager((message) => {
+                creationStage.value = message;
+            });
+            
+            // 开始显示动态进度消息
+            musicProgressManager.value.start('music', emotion);
+            
+            result = await generateMusicFromConversation(
+                conversation,
+                emotion,
+                theme,
+                (progress, stage) => {
+                    creationProgress.value = progress;
+                    // 只在特定阶段更新 stage，其他时候让动态消息接管
+                    if (stage.includes('歌词创作完成') || stage.includes('音乐生成完成')) {
+                        if (musicProgressManager.value) {
+                            musicProgressManager.value.setMessage(stage);
+                        }
+                    }
+                },
+                false // 非礼物模式
+            );
+            generatedMusic.value = result;
+            
+            // 停止进度消息管理器
+            if (musicProgressManager.value) {
+                musicProgressManager.value.stop();
+                musicProgressManager.value = null;
+            }
+        } else if (type === 'poem') {
+            result = await generatePoemCard(
+                conversation,
+                emotion,
+                theme,
+                (progress, stage) => {
+                    creationProgress.value = progress;
+                    creationStage.value = stage;
+                },
+                false // 非礼物模式
+            );
+            generatedPoem.value = result;
+        } else if (type === 'image') {
+            // 创建图像进度消息管理器
+            imageProgressManager.value = createProgressMessageManager((message) => {
+                creationStage.value = message;
+            });
+            
+            // 开始显示动态进度消息
+            imageProgressManager.value.start('image', emotion);
+            
+            result = await generateImageFromConversation(
+                conversation,
+                emotion,
+                theme,
+                (progress, stage) => {
+                    creationProgress.value = progress;
+                    // 只在特定阶段更新 stage，其他时候让动态消息接管
+                    if (stage.includes('图像生成完成') || stage.includes('处理完成')) {
+                        if (imageProgressManager.value) {
+                            imageProgressManager.value.setMessage(stage);
+                        }
+                    }
+                },
+                false // 非礼物模式
+            );
+            generatedImage.value = result;
+            
+            // 停止进度消息管理器
+            if (imageProgressManager.value) {
+                imageProgressManager.value.stop();
+                imageProgressManager.value = null;
+            }
+        }
+        
+        // 添加AI消息展示生成结果
+        const resultMessage = {
+            type: 'assistant' as const,
+            content: `我把这段心情先留成一${type === 'music' ? '首歌' : type === 'poem' ? '首诗' : '幅画'}，你看看是否贴近你的感受。需要的话我可以换一种表达。`,
+            time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+        };
+        
+        messages.value.push(resultMessage);
+        
+        // 滚动到底部
+        await nextTick();
+        if (messagesContainer.value) {
+            messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+        }
+        
+    } catch (error: any) {
+        console.error('创作生成错误:', error);
+        
+        const errorMessage = {
+            type: 'assistant' as const,
+            content: `哎呀，断网了：${error.message || '稍后再试哦'}。`,
+            time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+            isError: true,
+            canRetry: true,
+            retryAction: type // 使用具体的创作类型 (music/poem/image)
+        };
+        
+        messages.value.push(errorMessage);
+        
+        await nextTick();
+        if (messagesContainer.value) {
+            messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+        }
+    } finally {
+        // 清理进度消息管理器
+        if (musicProgressManager.value) {
+            musicProgressManager.value.stop();
+            musicProgressManager.value = null;
+        }
+        if (imageProgressManager.value) {
+            imageProgressManager.value.stop();
+            imageProgressManager.value = null;
+        }
+        
+        isCreating.value = false;
+    }
+};
+
 // 生成音乐
 const generateMusic = async () => {
     if (isMusicGenerating.value) return;
@@ -1647,9 +2117,34 @@ const generateMusic = async () => {
             .map(msg => msg.content)
             .join('\n');
         
-        // 简单的情绪和主题提取
-        const emotion = '温暖'; // 可以通过AI分析对话内容得出
-        const theme = '心情分享'; // 可以通过AI分析对话内容得出
+        // AI智能分析情绪和主题
+        let emotion = '温暖';
+        let theme = '心情分享';
+        
+        try {
+            // 使用大模型分析对话内容的情绪和主题
+            const analysisResult = await analyzeEmotionAndTheme(conversation);
+            if (analysisResult.emotion) {
+                emotion = analysisResult.emotion;
+            }
+            if (analysisResult.theme) {
+                theme = analysisResult.theme;
+            }
+            console.log('AI分析结果 - 情绪:', emotion, '主题:', theme);
+        } catch (error) {
+            console.warn('AI分析失败，使用默认情绪和主题:', error);
+        }
+        
+        // 保存当前情绪，用于进度消息
+        currentEmotion.value = emotion;
+        
+        // 创建音乐进度消息管理器
+        musicProgressManager.value = createProgressMessageManager((message) => {
+            musicStage.value = message;
+        });
+        
+        // 开始显示动态进度消息
+        musicProgressManager.value.start('music', emotion);
         
         const result = await generateMusicFromConversation(
             conversation,
@@ -1657,7 +2152,12 @@ const generateMusic = async () => {
             theme,
             (progress, stage) => {
                 musicProgress.value = progress;
-                musicStage.value = stage;
+                // 只在特定阶段更新 stage，其他时候让动态消息接管
+                if (stage.includes('歌词创作完成') || stage.includes('音乐生成完成')) {
+                    if (musicProgressManager.value) {
+                        musicProgressManager.value.setMessage(stage);
+                    }
+                }
             }
         );
         
@@ -1683,8 +2183,11 @@ const generateMusic = async () => {
         
         const errorMessage = {
             type: 'assistant' as const,
-            content: `抱歉，音乐生成遇到了问题：${error.message || '请稍后再试'}。`,
-            time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+            content: `哎呀，出bug了：${error.message || '再试一次吧'}。`,
+            time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+            isError: true,
+            canRetry: true,
+            retryAction: 'music'
         };
         
         messages.value.push(errorMessage);
@@ -1694,6 +2197,12 @@ const generateMusic = async () => {
             messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
         }
     } finally {
+        // 停止进度消息管理器
+        if (musicProgressManager.value) {
+            musicProgressManager.value.stop();
+            musicProgressManager.value = null;
+        }
+        
         isMusicGenerating.value = false;
         musicProgress.value = '';
         musicStage.value = '';
@@ -1751,8 +2260,11 @@ const generatePoem = async () => {
 
         const errorMessage = {
             type: 'assistant' as const,
-            content: `抱歉，诗词生成遇到了问题：${error.message || '请稍后再试'}。`,
-            time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+            content: `哎呀，出bug了：${error.message || '再试一次吧'}。`,
+            time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+            isError: true,
+            canRetry: true,
+            retryAction: 'poem'
         };
 
         messages.value.push(errorMessage);
@@ -1783,9 +2295,34 @@ const generateImageArt = async () => {
             .map(msg => msg.content)
             .join('\n');
 
-        // 简单的情绪和主题提取
-        const emotion = '温暖'; // 可以通过AI分析对话内容得出
-        const theme = '心情分享'; // 可以通过AI分析对话内容得出
+        // AI智能分析情绪和主题
+        let emotion = '温暖';
+        let theme = '心情分享';
+        
+        try {
+            // 使用大模型分析对话内容的情绪和主题
+            const analysisResult = await analyzeEmotionAndTheme(conversation);
+            if (analysisResult.emotion) {
+                emotion = analysisResult.emotion;
+            }
+            if (analysisResult.theme) {
+                theme = analysisResult.theme;
+            }
+            console.log('AI分析结果 - 情绪:', emotion, '主题:', theme);
+        } catch (error) {
+            console.warn('AI分析失败，使用默认情绪和主题:', error);
+        }
+        
+        // 保存当前情绪，用于进度消息
+        currentEmotion.value = emotion;
+        
+        // 创建图像进度消息管理器
+        imageProgressManager.value = createProgressMessageManager((message) => {
+            imageStage.value = message;
+        });
+        
+        // 开始显示动态进度消息
+        imageProgressManager.value.start('image', emotion);
 
         const result = await generateImageFromConversation(
             conversation,
@@ -1793,7 +2330,12 @@ const generateImageArt = async () => {
             theme,
             (progress, stage) => {
                 imageProgress.value = progress;
-                imageStage.value = stage;
+                // 只在特定阶段更新 stage，其他时候让动态消息接管
+                if (stage.includes('图像生成完成') || stage.includes('处理完成')) {
+                    if (imageProgressManager.value) {
+                        imageProgressManager.value.setMessage(stage);
+                    }
+                }
             }
         );
 
@@ -1819,8 +2361,11 @@ const generateImageArt = async () => {
 
         const errorMessage = {
             type: 'assistant' as const,
-            content: `抱歉，图像生成遇到了问题：${error.message || '请稍后再试'}。`,
-            time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+            content: `哎呀，出bug了：${error.message || '再试一次吧'}。`,
+            time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+            isError: true,
+            canRetry: true,
+            retryAction: 'image'
         };
 
         messages.value.push(errorMessage);
@@ -1830,6 +2375,12 @@ const generateImageArt = async () => {
             messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
         }
     } finally {
+        // 停止进度消息管理器
+        if (imageProgressManager.value) {
+            imageProgressManager.value.stop();
+            imageProgressManager.value = null;
+        }
+        
         isImageGenerating.value = false;
         imageProgress.value = '';
         imageStage.value = '';
@@ -1894,6 +2445,33 @@ const togglePlay = (musicId: string) => {
 
 
 const openMusicPlayer = (music: any) => {
+    // 保存当前聊天页面状态
+    giftStateManager.saveChatPageState({
+        messages: messages.value,
+        inputText: inputText.value,
+        generatedMusic: generatedMusic.value,
+        generatedImage: generatedImage.value,
+        generatedPoem: generatedPoem.value,
+        generatedVideo: generatedVideo.value,
+        giftSenderName: giftSenderName.value,
+        isGiftMode: isGiftMode.value,
+        currentGiftMode: currentGiftMode.value as 'image' | 'music' | 'poem',
+        giftTarget: giftTarget.value,
+        giftMessage: giftMessage.value,
+        giftResult: giftResult.value,
+        isGenerating: isGenerating.value,
+        generationProgress: generationProgress.value,
+        conversationId: route.params.id as string,
+        // 保存视频生成状态
+        isGeneratingVideo: isGeneratingVideo.value,
+        videoProgress: videoProgress.value,
+        videoStage: videoStage.value,
+        isGiftGeneratingVideo: isGiftGeneratingVideo.value,
+        giftVideoProgress: giftVideoProgress.value,
+        giftVideoStage: giftVideoStage.value,
+        giftGeneratedVideo: giftGeneratedVideo.value
+    });
+    
     // 跳转到音乐播放页面，传递音乐数据
     router.push({
         name: 'MusicPlayer',
@@ -1906,7 +2484,34 @@ const openMusicPlayer = (music: any) => {
 const openGiftMusicPlayer = () => {
     if (!giftResult.value || giftResult.value.type !== 'music') return;
     
-    // 保存当前礼物状态到全局状态管理器
+    // 保存当前聊天页面状态
+    giftStateManager.saveChatPageState({
+        messages: messages.value,
+        inputText: inputText.value,
+        generatedMusic: generatedMusic.value,
+        generatedImage: generatedImage.value,
+        generatedPoem: generatedPoem.value,
+        generatedVideo: generatedVideo.value,
+        giftSenderName: giftSenderName.value,
+        isGiftMode: isGiftMode.value,
+        currentGiftMode: currentGiftMode.value as 'image' | 'music' | 'poem',
+        giftTarget: giftTarget.value,
+        giftMessage: giftMessage.value,
+        giftResult: giftResult.value,
+        isGenerating: isGenerating.value,
+        generationProgress: generationProgress.value,
+        conversationId: route.params.id as string,
+        // 保存视频生成状态
+        isGeneratingVideo: isGeneratingVideo.value,
+        videoProgress: videoProgress.value,
+        videoStage: videoStage.value,
+        isGiftGeneratingVideo: isGiftGeneratingVideo.value,
+        giftVideoProgress: giftVideoProgress.value,
+        giftVideoStage: giftVideoStage.value,
+        giftGeneratedVideo: giftGeneratedVideo.value
+    });
+    
+    // 保存当前礼物状态到全局状态管理器（保持兼容性）
     giftStateManager.saveState({
         isGiftMode: isGiftMode.value,
         currentGiftMode: currentGiftMode.value as 'image' | 'music' | 'poem',
@@ -1921,7 +2526,7 @@ const openGiftMusicPlayer = () => {
     const musicData = {
         musicId: giftResult.value.musicId || Date.now().toString(), // 使用真实的musicId或生成临时ID
         title: giftResult.value.title || '礼物音乐',
-        artist: '用户A', // 默认艺术家
+        artist: 'LoneIN', // 默认艺术家
         imageUrl: giftResult.value.imageUrl || '/default-music-cover.jpg',
         audioUrl: giftResult.value.musicUrl,
         prompt: giftResult.value.prompt || giftMessage.value || '礼物音乐' // 使用真实的歌词内容或礼物消息
@@ -1934,6 +2539,252 @@ const openGiftMusicPlayer = () => {
             musicData: JSON.stringify(musicData)
         }
     });
+};
+
+// 下载音乐
+const downloadMusic = async (music: any) => {
+    try {
+        const timestamp = Date.now();
+        const baseFileName = music.title || '音乐';
+        
+        // 下载音频文件
+        try {
+            const response = await fetch(music.audioUrl, {
+                mode: 'cors',
+                credentials: 'omit'
+            });
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `${baseFileName}_${timestamp}.mp3`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            URL.revokeObjectURL(url);
+            alert('音乐下载成功！');
+        } catch (corsError) {
+            console.warn('音乐直接下载失败，尝试代理下载:', corsError);
+            
+            // 如果CORS失败，通过新窗口打开音乐让用户右键保存
+            const newWindow = window.open(music.audioUrl, '_blank');
+            if (newWindow) {
+                setTimeout(() => {
+                    alert('请在新打开的页面中右键点击音频选择"保存音频"来下载');
+                }, 500);
+            } else {
+                // 如果弹窗被阻止，创建一个下载链接
+                const link = document.createElement('a');
+                link.href = music.audioUrl;
+                link.target = '_blank';
+                link.download = `${baseFileName}_${timestamp}.mp3`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        }
+    } catch (error: any) {
+        console.error('下载音乐失败:', error);
+        alert('下载失败，请稍后重试');
+    }
+};
+
+// 生成歌词视频
+const generateLyricsVideo = async (music: any) => {
+    if (!music || isGeneratingVideo.value) return;
+    
+    try {
+        isGeneratingVideo.value = true;
+        videoProgress.value = '0%';
+        videoStage.value = '获取歌词时间线...';
+        
+        // 1. 获取歌词时间线
+        const lyricsResponse = await getLyricsTimeline(music.musicId);
+        if (lyricsResponse.status !== 'SUCCESS') {
+            throw new Error('获取歌词时间线失败');
+        }
+        
+        videoStage.value = '准备生成视频...';
+        videoProgress.value = '20%';
+        
+        // 2. 调用本地服务生成视频 - 使用后端服务端口
+        const apiUrl = `http://localhost:3001/generate-lyrics-video`;
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                audioUrl: music.audioUrl,
+                coverUrl: music.imageUrl,
+                title: music.title,
+                lyricsTimeline: lyricsResponse.data.alignment,
+                removeWatermarkFlag: false // 可以后续添加选项
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error('本地视频服务请求失败');
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            videoStage.value = '视频生成完成！';
+            videoProgress.value = '100%';
+            
+            // 保存生成的视频信息
+            generatedVideo.value = {
+                videoUrl: result.videoUrl,
+                title: music.title
+            };
+            
+            alert('歌词视频生成成功！');
+        } else {
+            throw new Error(result.error || '视频生成失败');
+        }
+        
+    } catch (error: any) {
+        console.error('生成歌词视频失败:', error);
+        
+        if (error.message.includes('localhost:') || error.message.includes('fetch')) {
+            alert(`请先启动本地视频服务！\n请在项目根目录运行：\ncd server && node index.js\n服务应在端口 3001 启动`);
+        } else {
+            alert('视频生成失败: ' + error.message);
+        }
+    } finally {
+        isGeneratingVideo.value = false;
+        setTimeout(() => {
+            videoProgress.value = '';
+            videoStage.value = '';
+        }, 3000);
+    }
+};
+
+// 生成礼物歌词视频
+const generateGiftLyricsVideo = async () => {
+    if (!giftResult.value || giftResult.value.type !== 'music' || isGiftGeneratingVideo.value) return;
+    
+    const music = {
+        musicId: giftResult.value.musicId,
+        audioUrl: giftResult.value.musicUrl,
+        imageUrl: giftResult.value.imageUrl,
+        title: giftResult.value.title
+    };
+    
+    try {
+        isGiftGeneratingVideo.value = true;
+        giftVideoProgress.value = '0%';
+        giftVideoStage.value = '获取歌词时间线...';
+        
+        // 1. 获取歌词时间线
+        const lyricsResponse = await getLyricsTimeline(music.musicId);
+        if (lyricsResponse.status !== 'SUCCESS') {
+            throw new Error('获取歌词时间线失败');
+        }
+        
+        giftVideoStage.value = '准备生成视频...';
+        giftVideoProgress.value = '20%';
+        
+        // 2. 调用本地服务生成视频 - 使用后端服务端口
+        const apiUrl = `http://localhost:3001/generate-lyrics-video`;
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                audioUrl: music.audioUrl,
+                coverUrl: music.imageUrl,
+                title: music.title,
+                lyricsTimeline: lyricsResponse.data.alignment,
+                removeWatermarkFlag: false // 可以后续添加选项
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error('本地视频服务请求失败');
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            giftVideoStage.value = '视频生成完成！';
+            giftVideoProgress.value = '100%';
+            
+            // 保存生成的视频信息
+            giftGeneratedVideo.value = {
+                videoUrl: result.videoUrl,
+                title: music.title
+            };
+            
+            alert('歌词视频生成成功！');
+        } else {
+            throw new Error(result.error || '视频生成失败');
+        }
+        
+    } catch (error: any) {
+        console.error('生成礼物歌词视频失败:', error);
+        
+        if (error.message.includes('localhost:') || error.message.includes('fetch')) {
+            alert(`请先启动本地视频服务！\n请在项目根目录运行：\ncd server && node index.js\n服务应在端口 3001 启动`);
+        } else {
+            alert('视频生成失败: ' + error.message);
+        }
+    } finally {
+        isGiftGeneratingVideo.value = false;
+        setTimeout(() => {
+            giftVideoProgress.value = '';
+            giftVideoStage.value = '';
+        }, 3000);
+    }
+};
+
+// 下载生成的礼物视频
+const downloadGiftGeneratedVideo = async () => {
+    if (!giftGeneratedVideo.value) return;
+    
+    try {
+        const response = await fetch(giftGeneratedVideo.value.videoUrl);
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${giftGeneratedVideo.value.title}-歌词视频.mp4`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error('下载视频失败:', error);
+        alert('下载失败，请稍后重试');
+    }
+};
+
+// 下载生成的视频
+const downloadGeneratedVideo = async () => {
+    if (!generatedVideo.value) return;
+    
+    try {
+        const response = await fetch(generatedVideo.value.videoUrl);
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${generatedVideo.value.title}-歌词视频.mp4`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        URL.revokeObjectURL(url);
+        alert('视频下载成功！');
+    } catch (error) {
+        console.error('视频下载失败:', error);
+        alert('视频下载失败，请稍后重试');
+    }
 };
 
 const savePoemCard = async () => {
@@ -2213,16 +3064,34 @@ const restoreOriginalStyles = (element: HTMLElement, originalStyles: any) => {
 };
 
 // 下载生成的图像
-const downloadGeneratedImage = () => {
-    if (generatedImage.value?.data?.imageUrl) {
-        const link = document.createElement('a');
-        link.href = generatedImage.value.data.imageUrl;
-        link.download = `心情画作_${Date.now()}.png`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        alert('图像已下载');
+const downloadGeneratedImage = async () => {
+    if (!generatedImage.value?.data?.imageUrl) {
+        const errorToast = document.createElement('div');
+        errorToast.innerHTML = '⚠️ 没有可下载的图片';
+        errorToast.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(239, 68, 68, 0.9);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            z-index: 9999;
+            font-size: 16px;
+        `;
+        document.body.appendChild(errorToast);
+        
+        setTimeout(() => {
+            if (document.body.contains(errorToast)) {
+                document.body.removeChild(errorToast);
+            }
+        }, 2000);
+        return;
     }
+
+    // 使用新的下载工具函数
+    await downloadImageUtil(generatedImage.value.data.imageUrl, '心情画作');
 };
 
 // 分享图像
@@ -2330,19 +3199,23 @@ const analyzeUserInput = (content: string, turnNumber: number) => {
         console.log('📝 用户消息：', content);
         console.log('📏 消息长度：', content.length, '字符');
         
-        // 对话阶段判断
+        // 对话阶段判断 - 基于6轮周期
+        const currentCycle = Math.ceil(turnNumber / 6);
+        const positionInCycle = ((turnNumber - 1) % 6) + 1;
         let currentPhase = '';
-        if (turnNumber <= 3) currentPhase = '深度倾听阶段';
-        else if (turnNumber <= 6) currentPhase = '具象化探索阶段';
-        else if (turnNumber <= 9) currentPhase = '情感深挖阶段';
-        else if (turnNumber <= 12) currentPhase = '洞察整合阶段';
-        else currentPhase = '深度陪伴阶段';
+        
+        if (positionInCycle <= 2) currentPhase = '深度倾听阶段';
+        else if (positionInCycle <= 4) currentPhase = '具象化探索阶段';
+        else currentPhase = '情感深挖阶段';
+        
+        console.log(`🔄 第${currentCycle}个周期，周期内第${positionInCycle}轮`);
         
         console.log('🎯 当前阶段：', currentPhase);
         
-        // 自动生成门槛检查
-        const canAutoGenerate = turnNumber >= 12;
-        console.log('🚦 自动生成门槛：', canAutoGenerate ? '✅ 已达到(≥12轮)' : `❌ 未达到(${turnNumber}/12轮)`);
+        // 自动生成门槛检查 - 每6轮触发一次
+        const isGenerationTriggerRound = turnNumber % 6 === 0 && turnNumber >= 6;
+        const nextTriggerRound = Math.ceil(turnNumber / 6) * 6;
+        console.log('🚦 生成触发检查：', isGenerationTriggerRound ? `✅ 第${turnNumber}轮触发生成选择` : `❌ 未达到触发轮次 (${turnNumber}/${nextTriggerRound}轮)`);
         
         // 情感词汇检测
         const positiveWords = ['开心', '高兴', '快乐', '兴奋', '满足', '幸福', '愉快', '舒服'];
@@ -2436,6 +3309,64 @@ const analyzeUserInput = (content: string, turnNumber: number) => {
     }
 };
 
+// 重试失败的操作
+const retryFailedAction = async (retryAction: string) => {
+    console.log('重试操作:', retryAction);
+    
+    try {
+        switch (retryAction) {
+            case 'message':
+                // 重新发送最后一条用户消息
+                const lastUserMessage = messages.value
+                    .slice()
+                    .reverse()
+                    .find(msg => msg.type === 'user');
+                
+                if (lastUserMessage) {
+                    // 移除错误消息
+                    messages.value = messages.value.filter(msg => !(msg as any).isError);
+                    
+                    // 重新设置输入内容并发送
+                    inputText.value = lastUserMessage.content;
+                    await sendMessage();
+                }
+                break;
+                
+            case 'creation':
+                // 重新开始创作 - 这个case现在应该不会被使用，因为我们直接使用具体类型
+                // 移除错误消息
+                messages.value = messages.value.filter(msg => !(msg as any).isError);
+                
+                // 重新触发创作逻辑 - 默认诗词（向后兼容）
+                await startCreation('poem');
+                break;
+                
+            case 'music':
+                // 重新生成音乐
+                messages.value = messages.value.filter(msg => !(msg as any).isError);
+                await generateMusic();
+                break;
+                
+            case 'poem':
+                // 重新生成诗词
+                messages.value = messages.value.filter(msg => !(msg as any).isError);
+                await generatePoem();
+                break;
+                
+            case 'image':
+                // 重新生成图像
+                messages.value = messages.value.filter(msg => !(msg as any).isError);
+                await generateImageArt();
+                break;
+                
+            default:
+                console.warn('未知的重试操作:', retryAction);
+        }
+    } catch (error) {
+        console.error('重试操作失败:', error);
+    }
+};
+
 // 监听礼物结果变化，重新初始化音频
 watch(giftResult, (newResult) => {
     if (newResult && newResult.type === 'music' && newResult.musicUrl) {
@@ -2448,9 +3379,118 @@ watch(giftResult, (newResult) => {
 });
 
 onMounted(() => {
-    // 移除AI分析系统相关初始化
+    // 初始化分模式状态管理
+    const chatState = giftStateManager.getChatModeState();
+    const poemState = giftStateManager.getPoemModeState();
     
-    // 检查路由参数，如果是从音乐播放页面返回的礼物模式，恢复状态
+    // 如果聊天模式状态为空，初始化默认消息
+    if (chatState.messages.length === 0) {
+        giftStateManager.saveChatModeState({
+            messages: [
+                {
+                    type: 'assistant',
+                    content: '今天过得咋样呀，我们来聊聊吧',
+                    time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+                }
+            ],
+            inputText: '',
+            generatedMusic: null,
+            generatedImage: null,
+            generatedPoem: null,
+            generatedVideo: null,
+            userMessageCount: 0,
+            showCreationChoice: false,
+            isCreating: false,
+            creationProgress: '',
+            creationStage: '',
+            creationResult: null,
+            // 初始化视频生成状态
+            isGeneratingVideo: false,
+            videoProgress: '0%',
+            videoStage: ''
+        });
+    }
+    
+    // 恢复当前模式的状态
+    if (isGiftMode.value) {
+        // 恢复诗词模式状态
+        giftTarget.value = poemState.giftTarget;
+        giftMessage.value = poemState.giftMessage;
+        giftResult.value = poemState.giftResult;
+        currentGiftMode.value = poemState.currentGiftMode as 'image' | 'music' | 'poem';
+        giftSenderName.value = poemState.giftSenderName;
+        isGenerating.value = poemState.isGenerating;
+        generationProgress.value = poemState.generationProgress;
+        generationStage.value = poemState.generationStage;
+        currentTheme.value = poemState.currentTheme as 'qixi' | 'military' | '' | null;
+    } else {
+        // 恢复聊天模式状态
+        const currentChatState = giftStateManager.getChatModeState();
+        messages.value = currentChatState.messages;
+        inputText.value = currentChatState.inputText;
+        generatedMusic.value = currentChatState.generatedMusic;
+        generatedImage.value = currentChatState.generatedImage;
+        generatedPoem.value = currentChatState.generatedPoem;
+        generatedVideo.value = currentChatState.generatedVideo;
+        userMessageCount.value = currentChatState.userMessageCount;
+        showCreationChoice.value = currentChatState.showCreationChoice;
+        isCreating.value = currentChatState.isCreating;
+        creationProgress.value = currentChatState.creationProgress;
+        creationStage.value = currentChatState.creationStage;
+        creationResult.value = currentChatState.creationResult;
+        // 恢复视频生成状态
+        isGeneratingVideo.value = currentChatState.isGeneratingVideo;
+        videoProgress.value = currentChatState.videoProgress;
+        videoStage.value = currentChatState.videoStage;
+    }
+    
+    // 检查是否从音乐播放器返回，如果是则恢复状态（保持向后兼容）
+    const savedChatState = giftStateManager.getChatPageState();
+    const currentConversationId = route.params.id as string;
+    
+    // 如果保存的状态与当前对话ID匹配，则恢复状态
+    if (savedChatState.conversationId === currentConversationId && 
+        (savedChatState.messages.length > 0 || savedChatState.generatedMusic || 
+         savedChatState.generatedImage || savedChatState.generatedPoem || 
+         savedChatState.giftResult)) {
+        
+        // 恢复聊天状态
+        messages.value = savedChatState.messages;
+        inputText.value = savedChatState.inputText;
+        generatedMusic.value = savedChatState.generatedMusic;
+        generatedImage.value = savedChatState.generatedImage;
+        generatedPoem.value = savedChatState.generatedPoem;
+        generatedVideo.value = savedChatState.generatedVideo;
+        giftSenderName.value = savedChatState.giftSenderName;
+        isGiftMode.value = savedChatState.isGiftMode;
+        currentGiftMode.value = savedChatState.currentGiftMode;
+        giftTarget.value = savedChatState.giftTarget;
+        giftMessage.value = savedChatState.giftMessage;
+        giftResult.value = savedChatState.giftResult;
+        isGenerating.value = savedChatState.isGenerating;
+        generationProgress.value = savedChatState.generationProgress;
+        // 恢复视频生成状态
+        isGeneratingVideo.value = savedChatState.isGeneratingVideo;
+        videoProgress.value = savedChatState.videoProgress;
+        videoStage.value = savedChatState.videoStage;
+        isGiftGeneratingVideo.value = savedChatState.isGiftGeneratingVideo;
+        giftVideoProgress.value = savedChatState.giftVideoProgress;
+        giftVideoStage.value = savedChatState.giftVideoStage;
+        giftGeneratedVideo.value = savedChatState.giftGeneratedVideo;
+        
+        console.log('🔄 已恢复聊天页面状态');
+        
+        // 恢复音频播放状态
+        nextTick(() => {
+            if (giftResult.value && giftResult.value.type === 'music') {
+                setTimeout(() => {
+                    initGiftAudioListeners();
+                }, 100);
+            }
+        });
+    }
+    
+    // 检查路由参数，如果是从音乐播放页面返回的礼物模式，恢复状态（保持向后兼容）
     if (route.query.mode === 'gift') {
         const savedState = giftStateManager.getState();
         if (savedState.isGiftMode) {
@@ -2466,6 +3506,8 @@ onMounted(() => {
             console.log('🔄 已恢复礼物模式状态');
         }
     }
+    
+    console.log('📋 页面状态初始化完成');
     
     // 初始化时滚动到底部
     nextTick(() => {
@@ -2483,6 +3525,7 @@ onMounted(() => {
     flex-direction: column;
     background: linear-gradient(180deg, #2c1810 0%, #1a1a1a 100%);
     color: white;
+    transition: background 1.5s cubic-bezier(0.77, 0, 0.175, 1);
 }
 
 
@@ -2916,9 +3959,9 @@ onMounted(() => {
 }
 
 .control-btn {
-    width: 44px;
-    height: 44px;
-    border-radius: 22px;
+    width: 40px;
+    height: 40px;
+    border-radius: 20px;
     background: none;
     border: 1px solid;
     border-color: #ff9500;
@@ -2934,16 +3977,40 @@ onMounted(() => {
     transform: scale(1.05);
 }
 
+/* 确保SVG图标没有描边 */
+.control-btn svg {
+    stroke: none !important;
+    stroke-width: 0 !important;
+}
+
 .play-btn {
-    width: 44px;
-    height: 44px;
+    width: 40px;
+    height: 40px;
+    border: 1px solid #ff9500;
     background: none;
-    border: none;
     border-radius: 50%;
 }
 
 .play-btn:hover {
     background: linear-gradient(135deg, #ffed4e, #ff9500);
+}
+
+.download-btn {
+    width: 40px;
+    height: 40px;
+    background: none;
+    border: 1px solid #ff9500;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.download-btn:hover {
+    background: rgba(255, 149, 0, 0.1);
+    transform: scale(1.05);
 }
 
 .hidden-audio {
@@ -3460,7 +4527,7 @@ onMounted(() => {
 .gift-content {
     flex: 1;
     overflow-y: auto;
-    padding: 20px;
+    padding: 20px 32px;
     height: 100%;
     max-height: calc(100vh - 120px); /* 减去导航栏和底部的高度 */
     -webkit-overflow-scrolling: touch; /* iOS平滑滚动 */
@@ -3645,5 +4712,365 @@ onMounted(() => {
 .gift-result {
     margin-top: 24px;
     text-align: center;
+}
+
+/* 创作选择样式 */
+.creation-choice {
+    margin: 20px 0;
+}
+
+.choice-message {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.creation-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    margin: 16px 0;
+}
+
+.creation-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 20px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius:20%;
+    color: rgba(255, 255, 255, 0.8);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-width: 80px;
+}
+
+.creation-btn:hover {
+    background: rgba(232, 153, 87, 0.2);
+    border-color: rgba(232, 153, 87, 0.5);
+    color: rgb(232, 153, 87);
+    transform: translateY(-2px);
+}
+
+.creation-btn span {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+/* 创作进度样式 */
+.creation-progress {
+    margin: 20px 0;
+    text-align: center;
+}
+
+.creation-progress .progress-bar {
+    width: 100%;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+    overflow: hidden;
+    margin: 12px 0;
+}
+
+.creation-progress .progress-fill {
+    height: 100%;
+    background: rgb(232, 153, 87);
+    transition: width 0.3s ease;
+}
+
+.creation-progress .progress-text {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 14px;
+}
+
+/* 错误消息和重试按钮样式 */
+.error-bubble {
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.1) !important;
+}
+
+.retry-button-container {
+    margin-top: 12px;
+    display: flex;
+    justify-content: center;
+}
+
+.retry-button {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: linear-gradient(135deg, rgb(232, 153, 87), rgba(232, 153, 87, 0.8));
+    border: none;
+    border-radius: 20px;
+    color: white;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.retry-button:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(232, 153, 87, 0.9), rgba(232, 153, 87, 0.7));
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(232, 153, 87, 0.3);
+}
+
+.retry-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+/* 视频生成进度 */
+.video-generating {
+    margin: 16px 8px;
+    padding: 20px;
+    background: linear-gradient(135deg, rgba(255, 149, 0, 0.1), rgba(255, 149, 0, 0.05));
+    border-radius: 16px;
+    border: 1px solid rgba(255, 149, 0, 0.2);
+}
+
+.video-progress-bar {
+    width: 100%;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+.video-stage-text {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 4px;
+}
+
+.video-progress-text {
+    font-size: 12px;
+    color: rgba(255, 149, 0, 0.8);
+}
+
+/* 视频卡片 */
+.video-card {
+    margin: 16px 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    overflow: hidden;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.video-item {
+    position: relative;
+}
+
+.generated-video {
+    width: 100%;
+    height: auto;
+    display: block;
+    background: black;
+}
+
+.video-info {
+    padding: 16px;
+    text-align: center;
+}
+
+.video-info h4 {
+    margin: 0;
+    font-size: 16px;
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: 500;
+}
+
+.video-actions {
+    padding: 12px 16px;
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.video-action-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: linear-gradient(135deg, rgba(255, 149, 0, 0.8), rgba(255, 149, 0, 0.6));
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.video-action-btn:hover {
+    background: linear-gradient(135deg, rgba(255, 149, 0, 0.9), rgba(255, 149, 0, 0.7));
+    transform: translateY(-1px);
+}
+
+.video-btn {
+    opacity: 0.8;
+}
+
+.video-btn:hover:not(:disabled) {
+    opacity: 1;
+    transform: scale(1.05);
+}
+
+.video-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* 礼物视频生成进度 */
+.gift-video-generating {
+    margin: 16px 8px;
+    padding: 20px;
+    background: linear-gradient(135deg, rgba(255, 149, 0, 0.1), rgba(255, 149, 0, 0.05));
+    border-radius: 16px;
+    border: 1px solid rgba(255, 149, 0, 0.2);
+}
+
+.gift-video-progress-bar {
+    width: 100%;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+.gift-video-stage-text {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 4px;
+}
+
+.gift-video-progress-text {
+    font-size: 12px;
+    color: rgba(255, 149, 0, 0.8);
+}
+
+/* 礼物视频卡片 */
+.gift-video-card {
+    margin: 16px 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    overflow: hidden;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.gift-video-item {
+    position: relative;
+}
+
+.generated-gift-video {
+    width: 100%;
+    height: auto;
+    display: block;
+    background: black;
+}
+
+.gift-video-info {
+    padding: 16px;
+    text-align: center;
+}
+
+.gift-video-info h4 {
+    margin: 0;
+    font-size: 16px;
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: 500;
+}
+
+.gift-video-actions {
+    padding: 12px 16px;
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.gift-video-action-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: linear-gradient(135deg, rgba(255, 149, 0, 0.8), rgba(255, 149, 0, 0.6));
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.gift-video-action-btn:hover {
+    background: linear-gradient(135deg, rgba(255, 149, 0, 0.9), rgba(255, 149, 0, 0.7));
+    transform: translateY(-1px);
+}
+
+/* 图片卡片样式 */
+.image-card {
+    margin: 16px 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    overflow: hidden;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.image-item {
+    position: relative;
+}
+
+.generated-image {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 16px 16px 0 0;
+}
+
+.image-actions {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    display: flex;
+    gap: 8px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.image-item:hover .image-actions {
+    opacity: 1;
+}
+
+.image-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: rgba(0, 0, 0, 0.7);
+    border: none;
+    border-radius: 50%;
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+}
+
+.image-action-btn:hover {
+    background: rgba(255, 149, 0, 0.8);
+    transform: scale(1.1);
 }
 </style> 

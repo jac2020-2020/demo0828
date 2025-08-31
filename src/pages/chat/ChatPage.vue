@@ -382,6 +382,14 @@ onMounted(() => {
     -webkit-overflow-scrolling: touch;
     position: relative;
     z-index: 5;
+    /* 隐藏滚动条 */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+}
+
+/* 隐藏WebKit浏览器的滚动条 */
+.chat-content::-webkit-scrollbar {
+    display: none;
 }
 
 .welcome-message {

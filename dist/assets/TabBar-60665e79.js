@@ -1,6 +1,0 @@
-import{a as r,E as i,l as a,c as t,b as s,F as l,g as _,h as m,G as p,m as d,x as b,A as h,t as u,_ as v}from"./index-bf26fcf4.js";import{U as f}from"./user-79e17450.js";import{M as k}from"./message-circle-13c1f542.js";import{c as y}from"./createLucideIcon-6f8267e0.js";/**
- * @license lucide-vue-next v0.542.0 - ISC
- *
- * This source code is licensed under the ISC license.
- * See the LICENSE file in the root directory of this source tree.
- */const B=y("compass",[["path",{d:"m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z",key:"9ktpf1"}],["circle",{cx:"12",cy:"12",r:"10",key:"1mglay"}]]),C={class:"tab-bar safe-area-bottom"},g={class:"tab-container"},x={class:"tab-icon"},T={class:"tab-label"},z=r({__name:"TabBar",props:{current:{}},setup(L){const o=[{name:"me",path:"/me",icon:f,label:"我的"},{name:"chat",path:"/chat",icon:k,label:"对话"},{name:"discover",path:"/discover",icon:B,label:"发现"}];return(c,D)=>{const n=i("router-link");return a(),t("div",C,[s("div",g,[(a(),t(l,null,_(o,e=>m(n,{key:e.name,to:e.path,class:d(["tab-item",{active:c.current===e.name}])},{default:p(()=>[s("div",x,[(a(),b(h(e.icon),{size:20}))]),s("div",T,u(e.label),1)]),_:2},1032,["to","class"])),64))])])}}});const N=v(z,[["__scopeId","data-v-c67181ab"]]);export{N as T};

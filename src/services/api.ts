@@ -359,39 +359,42 @@ export const generateLyricsFromConversation = async (
 
         const systemMessage: ChatMessage = {
             role: 'system',
-            content: `你是一个专业的歌词创作者和音乐制作人。根据用户的对话内容、情绪状态和主题，创作一首富有情感的现代流行歌曲。
+            content: `你是一个专业的歌词创作者和音乐制作人。根据用户的对话内容、情绪状态和主题，创作一首富有情感的歌曲。
 
-            🎵 **歌词结构要求（参考现代流行歌曲标准）**：
+⚠️ **重要约束条件**：每行歌词严格不能超过8个字！这是为了适配歌词视频生成的技术要求，必须严格遵守！每句歌词的末尾都要用，、。等符号结尾。
+
+🎵 **歌词结构要求（参考现代流行歌曲标准）**：
             
             **[Verse 1]** - 主歌第一段（4-6行）
             - 设置场景和情境，引入故事背景
-            - 每行8-12个字，节奏舒缓，为副歌做铺垫
+            - 每行严格不超过8个字，节奏舒缓，为副歌做铺垫
             - 使用具体的意象和细节描述
             
             **[Chorus]** - 副歌（4-6行）  
             - 情感爆发点，表达核心主题
-            - 每行6-10个字，朗朗上口，易于记忆
+            - 每行严格不超过8个字，朗朗上口，易于记忆
             - 使用重复和呼应，增强感染力
             - 包含歌曲的情感高潮和核心信息
             
             **[Verse 2]** - 主歌第二段（4-6行）
             - 深化情感层次，推进故事发展  
-            - 与第一段呼应但有所发展
+            - 每行严格不超过8个字，与第一段呼应但有所发展
             - 为第二次副歌做更深层的情感铺垫
             
             **[Chorus]** - 副歌重复（4-6行）
             - 重复核心旋律和情感表达
-            - 可以在最后一行做细微变化增强效果
+            - 每行严格不超过8个字，可以在最后一行做细微变化增强效果
             
             **[Bridge]** - 过渡段（2-4行，可选）
             - 情感转折或升华
-            - 为最终高潮做准备
+            - 每行严格不超过8个字，为最终高潮做准备
             
             **[Outro]** - 尾声（2-3行）
             - 情感的沉淀和回味
-            - 给听众留下深刻印象
+            - 每行严格不超过8个字，给听众留下深刻印象
 
             🎨 **创作质量标准**：
+            - **字数限制（重要）**：每行歌词严格不超过8个字，无例外！这是为了适配歌词视频生成
             - **总字数**：300-400字（符合完整歌曲长度）
             - **韵律感**：注重押韵和节拍，易于演唱
             - **情感层次**：从引入→高潮→深化→升华的完整情感弧线
@@ -531,6 +534,172 @@ export const generateLyricsFromConversation = async (
     }
 };
 
+// 智能生成音乐标签
+const generateSmartMusicTags = (emotion: string, theme: string, isGiftMode: boolean = false, relationship?: string): string => {
+    // 基础情绪标签映射
+    const emotionTagsMap: Record<string, string[]> = {
+        '开心': ['upbeat', 'joyful', 'cheerful', 'bright', 'energetic'],
+        '兴奋': ['dynamic', 'energetic', 'powerful', 'intense', 'uplifting'],
+        '温暖': ['warm', 'gentle', 'soft', 'tender', 'comforting'],
+        '感动': ['touching', 'emotional', 'heartfelt', 'moving', 'inspiring'],
+        '希望': ['hopeful', 'optimistic', 'inspiring', 'uplifting', 'bright'],
+        '平静': ['peaceful', 'calm', 'serene', 'tranquil', 'meditative'],
+        '满足': ['content', 'peaceful', 'harmonious', 'balanced', 'fulfilled'],
+        '自信': ['confident', 'strong', 'empowering', 'bold', 'determined'],
+        '伤心': ['melancholic', 'sad', 'emotional', 'heartbreaking', 'tender'],
+        '失落': ['melancholic', 'nostalgic', 'reflective', 'emotional', 'bittersweet'],
+        '焦虑': ['tense', 'restless', 'atmospheric', 'dark', 'intense'],
+        '愤怒': ['aggressive', 'intense', 'powerful', 'dramatic', 'heavy'],
+        '孤独': ['lonely', 'introspective', 'atmospheric', 'ambient', 'sparse'],
+        '疲惫': ['slow', 'dreamy', 'atmospheric', 'mellow', 'soft'],
+        '迷茫': ['uncertain', 'floating', 'atmospheric', 'ambient', 'searching'],
+        '沮丧': ['downbeat', 'melancholic', 'heavy', 'dark', 'emotional'],
+        '怀念': ['nostalgic', 'wistful', 'gentle', 'reminiscent', 'bittersweet'],
+        '期待': ['anticipating', 'building', 'hopeful', 'ascending', 'bright'],
+        '纠结': ['complex', 'layered', 'intricate', 'conflicted', 'dramatic'],
+        '复杂': ['sophisticated', 'layered', 'intricate', 'nuanced', 'deep'],
+        '释然': ['freeing', 'liberating', 'peaceful', 'resolved', 'light'],
+        '无奈': ['resigned', 'melancholic', 'bittersweet', 'reflective', 'gentle'],
+        '心疼': ['tender', 'caring', 'gentle', 'emotional', 'protective']
+    };
+
+    // 主题标签映射
+    const themeTagsMap: Record<string, string[]> = {
+        '爱情': ['romantic', 'intimate', 'passionate', 'love song', 'tender'],
+        '友情': ['friendship', 'bonding', 'loyal', 'supportive', 'warm'],
+        '亲情': ['family love', 'nurturing', 'protective', 'generational', 'heartwarming'],
+        '失恋': ['heartbreak', 'loss', 'emotional', 'vulnerable', 'healing'],
+        '思念': ['longing', 'distance', 'yearning', 'memories', 'nostalgic'],
+        '告别': ['farewell', 'departure', 'ending', 'transitional', 'poignant'],
+        '工作': ['motivated', 'focused', 'determined', 'professional', 'driven'],
+        '学习': ['growth', 'discovery', 'learning', 'progress', 'educational'],
+        '成长': ['evolving', 'maturing', 'transformative', 'progressive', 'developmental'],
+        '梦想': ['aspirational', 'soaring', 'ambitious', 'visionary', 'inspiring'],
+        '压力': ['stressful', 'tense', 'overwhelming', 'urgent', 'intense'],
+        '生活感悟': ['philosophical', 'reflective', 'wise', 'contemplative', 'deep'],
+        '青春': ['youthful', 'vibrant', 'fresh', 'spirited', 'carefree'],
+        '回忆': ['nostalgic', 'reminiscent', 'memory-laden', 'wistful', 'vintage'],
+        '未来': ['forward-looking', 'hopeful', 'futuristic', 'progressive', 'bright'],
+        '当下': ['present', 'immediate', 'mindful', 'conscious', 'grounded'],
+        '时光': ['temporal', 'flowing', 'passing', 'timeless', 'eternal'],
+        '奋斗': ['determined', 'fighting', 'persistent', 'strong-willed', 'motivated'],
+        '迷茫': ['searching', 'uncertain', 'questioning', 'exploring', 'wandering'],
+        '坚强': ['resilient', 'powerful', 'unbreakable', 'courageous', 'bold'],
+        '脆弱': ['delicate', 'sensitive', 'vulnerable', 'fragile', 'tender'],
+        '治愈': ['healing', 'therapeutic', 'soothing', 'restorative', 'calming'],
+        '心情分享': ['personal', 'intimate', 'conversational', 'sharing', 'open']
+    };
+
+    // 获取情绪标签
+    const emotionTags = emotionTagsMap[emotion] || ['emotional', 'heartfelt'];
+    
+    // 获取主题标签
+    const themeTags = themeTagsMap[theme] || ['expressive', 'personal'];
+
+    // 基础音乐风格
+    let musicTags = [emotion.toLowerCase(), 'melodic'];
+    
+    // 添加情绪标签（随机选择2-3个）
+    const selectedEmotionTags = emotionTags.slice(0, Math.floor(Math.random() * 2) + 2);
+    musicTags.push(...selectedEmotionTags);
+    
+    // 添加主题标签（随机选择1-2个）
+    const selectedThemeTags = themeTags.slice(0, Math.floor(Math.random() * 2) + 1);
+    musicTags.push(...selectedThemeTags);
+
+    // 礼物模式特殊处理
+    if (isGiftMode) {
+        musicTags.push('gentle', 'acoustic', 'soft vocals');
+        
+        if (relationship) {
+            const rel = relationship.toLowerCase();
+            if (rel.includes('恋人') || rel.includes('情侣') || rel.includes('男朋友') || rel.includes('女朋友')) {
+                musicTags.push('romantic', 'intimate');
+            } else if (rel.includes('家人') || rel.includes('父母') || rel.includes('爸爸') || rel.includes('妈妈')) {
+                musicTags.push('family love', 'nostalgic');
+            } else {
+                musicTags.push('friendship', 'uplifting');
+            }
+        }
+    } else {
+        // 普通模式添加现代流行元素
+        musicTags.push('contemporary');
+    }
+
+    // 去重并限制标签数量
+    const uniqueTags = [...new Set(musicTags)];
+    
+    // 限制在10个标签以内，避免过于复杂
+    return uniqueTags.slice(0, 10).join(', ');
+};
+
+// 分析对话情绪和主题
+export const analyzeEmotionAndTheme = async (conversation: string): Promise<{emotion: string, theme: string}> => {
+    try {
+        const systemMessage: ChatMessage = {
+            role: 'system',
+            content: `你是一个专业的情绪和主题分析师。请根据用户的对话内容，分析出最符合的情绪和主题。
+
+**情绪分析要求**：
+- 选择最贴合的核心情绪，如：
+  * 积极情绪：开心、兴奋、温暖、感动、希望、平静、满足、自信
+  * 消极情绪：伤心、失落、焦虑、愤怒、孤独、疲惫、迷茫、沮丧
+  * 复杂情绪：怀念、期待、纠结、复杂、释然、无奈、心疼
+- 优先选择情绪强度较高的词汇
+- 如果有多种情绪，选择最主要的一种
+
+**主题分析要求**：
+- 提取对话的核心主题，如：
+  * 情感类：爱情、友情、亲情、失恋、思念、告别
+  * 生活类：工作、学习、成长、梦想、压力、生活感悟
+  * 时间类：青春、回忆、未来、当下、时光
+  * 状态类：奋斗、迷茫、坚强、脆弱、治愈、成长
+- 主题应该是2-4个字的精炼表达
+
+请分析以下对话内容，只返回JSON格式：
+{
+    "emotion": "核心情绪（2-3个字）",
+    "theme": "主题概括（2-4个字）"
+}
+
+只返回JSON，不要任何其他内容。`
+        };
+
+        const promptMessage: ChatMessage = {
+            role: 'user',
+            content: `请分析以下对话的情绪和主题：\n\n${conversation}`
+        };
+
+        const response = await sendChatMessage([systemMessage, promptMessage]);
+        
+        // 尝试解析JSON响应
+        try {
+            const jsonMatch = response.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                const result = JSON.parse(jsonMatch[0]);
+                return {
+                    emotion: result.emotion || '温暖',
+                    theme: result.theme || '心情分享'
+                };
+            }
+        } catch (parseError) {
+            console.warn('解析情绪主题分析结果失败:', parseError);
+        }
+        
+        // 如果解析失败，返回默认值
+        return {
+            emotion: '温暖',
+            theme: '心情分享'
+        };
+    } catch (error) {
+        console.error('情绪主题分析失败:', error);
+        return {
+            emotion: '温暖',
+            theme: '心情分享'
+        };
+    }
+};
+
 // 生成音乐（包含歌词生成和音乐API调用，支持礼物模式）
 export const generateMusicFromConversation = async (
     conversation: string,
@@ -562,27 +731,8 @@ export const generateMusicFromConversation = async (
         if (onProgress) onProgress('30%', '歌词创作完成，开始生成音乐...');
         
         // 第二步：调用音乐生成API，使用AI生成的歌名
-        // 根据不同模式和情感生成更精准的标签
-        // 根据模式选择音乐标签
-        let musicTags = `${emotion}, melodic, heartfelt, emotional`;
-        
-        if (isGiftMode) {
-            // 礼物模式：添加温馨标签，如果有关系信息则添加对应风格
-            musicTags += ', gentle, acoustic, soft vocals, tender';
-            if (relationship) {
-                const rel = relationship.toLowerCase();
-                if (rel.includes('恋人') || rel.includes('情侣') || rel.includes('男朋友') || rel.includes('女朋友')) {
-                    musicTags += ', romantic, intimate, love song';
-                } else if (rel.includes('家人') || rel.includes('父母') || rel.includes('爸爸') || rel.includes('妈妈')) {
-                    musicTags += ', family love, warm, nostalgic';
-                } else {
-                    musicTags += ', friendship, uplifting, positive';
-                }
-            }
-        } else {
-            // 普通模式
-            musicTags += ', contemporary, expressive';
-        }
+        // 根据情绪和主题生成智能标签
+        let musicTags = generateSmartMusicTags(emotion, theme, isGiftMode, relationship);
         
         const jobId = await generateMusic(
             lyricsData.lyrics,
@@ -883,6 +1033,7 @@ export const generateImage = async (prompt: string): Promise<string> => {
         const payload = {
             model: 'Kwai-Kolors/Kolors',
             prompt: prompt,
+            negative_prompt: 'people, person, human, man, woman, boy, girl, child, adult, face, portrait, character, figure, body, hands, arms, legs, eyes, mouth, nose, hair, head, neck, shoulders, fingers, feet, clothing, dress, shirt, pants, shoes, hat, glasses, jewelry, watch, accessories',
             image_size: '1536x2048',
             batch_size: 1,
             num_inference_steps: 20,
@@ -1227,7 +1378,7 @@ ${senderName ? `送礼者：${senderName}` : ''}
 贺卡设计要求：
 1. 贺卡布局：贺卡版式设计，优雅卡片设计，艺术背景上的文字叠加
 2. 文字展示要求（非常重要）：
-   - 必须是中文文字：仅中文文字，无英文文字
+   - 必须是简体中文文字：仅简体中文文字，无英文文字
    - 文字内容：准确显示"致${recipient}，${userMessage}"中文字符
    - 文字大小：小巧文字，精致尺寸，不过大，可读但不突兀
    - 文字样式：优雅中文书法，精美中文字体，传统毛笔书写风格
@@ -1296,15 +1447,28 @@ ${senderName ? `送礼者：${senderName}` : ''}
         } else {
             // 普通模式：原有逻辑
             const analysisPrompt = `基于以下对话内容，生成一个适合OpenAI图像生成的提示词。要求：
-1. 提示词应该反映对话的情感氛围和主题
-2. 可以使用中文，简洁明了
-3. 包含艺术风格描述
-4. 适合表达情感和意境
-5. 控制在200字以内
+
+【重要限制】
+1. 严格禁止生成任何人物、人像、人体、角色或面部特征
+2. 必须生成一张艺术画作，具有高度艺术性和美感
+3. 绝对不能包含真实人物或虚拟角色
+
+【艺术风格要求】
+4. 必须随机选择一种艺术风格并输出风格提示词，但不用和示例一样，你自己思考这幅画适合什么艺术风格：
+   - 示例：梵高后印象派风格，旋转笔触，鲜艳色彩，星夜风格，表现主义
+
+【内容主题】
+5. 主题应为：自然风光、静物、抽象概念、风景、花卉、建筑、天空、海洋等
+6. 反映对话的情感氛围：${emotion}
+7. 体现对话主题：${theme}
+8. 营造与对话内容相符的意境和氛围
+
+【技术要求】
+9. 高艺术质量，适合作为艺术品收藏
+10. 构图优美，色彩和谐，细节丰富
+11. 控制在200字以内，使用中文描述
 
 对话内容：${conversation}
-情感：${emotion}
-主题：${theme}
 
 请直接返回图像生成提示词，不要包含其他解释文字。`;
 

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>下载功能测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .test-container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .test-image {
+            max-width: 100%;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .download-btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+            transition: transform 0.2s;
+        }
+        .download-btn:hover {
+            transform: translateY(-2px);
+        }
+        .test-section {
+            margin: 30px 0;
+            padding: 20px;
+            border: 2px dashed #667eea;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🖼️ 图片下载功能测试</h1>
+        
+        <div class="test-section">
+            <h2>测试图片 1</h2>
+            <img src="https://picsum.photos/400/300?random=1" class="test-image" alt="测试图片1">
+            <br>
+            <button class="download-btn" onclick="testDownload1()">下载图片 1</button>
+        </div>
+        
+        <div class="test-section">
+            <h2>测试图片 2</h2>
+            <img src="https://picsum.photos/400/300?random=2" class="test-image" alt="测试图片2">
+            <br>
+            <button class="download-btn" onclick="testDownload2()">下载图片 2</button>
+        </div>
+        
+        <div class="test-section">
+            <h2>本地图片测试</h2>
+            <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjNjY3ZWVhIi8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIyNCIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj7ov5npgYfor5rnv7vpgJI8L3RleHQ+Cjwvc3ZnPgo=" class="test-image" alt="本地测试图片">
+            <br>
+            <button class="download-btn" onclick="testDownload3()">下载本地图片</button>
+        </div>
+    </div>
+
+    <script>
+        // 简化的下载函数，模拟我们的下载工具
+        const showToast = (message, type = 'success', duration = 2000) => {
+            const toast = document.createElement('div');
+            toast.innerHTML = message;
+            
+            let backgroundColor;
+            switch (type) {
+                case 'loading':
+                    backgroundColor = 'rgba(0, 0, 0, 0.8)';
+                    break;
+                case 'success':
+                    backgroundColor = 'rgba(34, 197, 94, 0.9)';
+                    break;
+                case 'error':
+                    backgroundColor = 'rgba(239, 68, 68, 0.9)';
+                    break;
+            }
+            
+            toast.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: ${backgroundColor};
+                color: white;
+                padding: 15px 25px;
+                border-radius: 8px;
+                z-index: 9999;
+                font-size: 16px;
+                max-width: 300px;
+                text-align: center;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            `;
+            
+            document.body.appendChild(toast);
+            
+            if (type !== 'loading') {
+                setTimeout(() => {
+                    if (document.body.contains(toast)) {
+                        document.body.removeChild(toast);
+                    }
+                }, duration);
+            }
+            
+            return toast;
+        };
+
+        const downloadImage = async (url, filename) => {
+            const loadingToast = showToast('正在准备下载...', 'loading');
+            
+            try {
+                const response = await fetch(url, {
+                    mode: 'cors',
+                    credentials: 'omit'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                
+                const link = document.createElement('a');
+                link.href = blobUrl;
+                link.download = filename;
+                link.style.display = 'none';
+                
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                URL.revokeObjectURL(blobUrl);
+                
+                if (document.body.contains(loadingToast)) {
+                    document.body.removeChild(loadingToast);
+                }
+                
+                showToast('✅ 图片下载成功！', 'success');
+                return true;
+                
+            } catch (error) {
+                console.warn('直接下载失败:', error);
+                
+                if (document.body.contains(loadingToast)) {
+                    document.body.removeChild(loadingToast);
+                }
+                
+                showToast('⚠️ 自动下载失败，正在打开图片页面...', 'error', 3000);
+                window.open(url, '_blank');
+                return false;
+            }
+        };
+
+        const testDownload1 = () => {
+            downloadImage('https://picsum.photos/400/300?random=1', `测试图片1_${Date.now()}.jpg`);
+        };
+
+        const testDownload2 = () => {
+            downloadImage('https://picsum.photos/400/300?random=2', `测试图片2_${Date.now()}.jpg`);
+        };
+
+        const testDownload3 = () => {
+            const dataUrl = document.querySelector('img[alt="本地测试图片"]').src;
+            // 对于data URL，我们需要特殊处理
+            const link = document.createElement('a');
+            link.href = dataUrl;
+            link.download = `本地测试图片_${Date.now()}.svg`;
+            link.style.display = 'none';
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showToast('✅ 本地图片下载成功！', 'success');
+        };
+    </script>
+</body>
+</html> 

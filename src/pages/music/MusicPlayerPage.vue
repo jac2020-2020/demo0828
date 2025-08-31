@@ -47,7 +47,7 @@
                 <!-- 音乐信息 -->
                 <div v-if="!showLyrics" class="music-info">
                     <h1 class="music-title">{{ musicData?.title || '夜行人' }}</h1>
-                    <p class="music-artist">{{ musicData?.artist || '用户A' }}</p>
+                    <p class="music-artist">{{ musicData?.artist || 'LoneIN' }}</p>
                 </div>
             </div>
             
@@ -119,6 +119,7 @@ import { ArrowLeft } from 'lucide-vue-next';
 import { getLyricsTimeline, type LyricsAlignment } from '@/services/musicApi';
 import { cloudStorage } from '@/services/cloudStorage';
 import { lyricsCache, type LyricLine } from '@/services/lyricsCache';
+import { giftStateManager } from '@/services/giftStateManager';
 
 const router = useRouter();
 const route = useRoute();
@@ -492,7 +493,7 @@ onMounted(async () => {
     if (!musicData.value) {
         musicData.value = {
             title: '夜行人',
-            artist: '用户A',
+            artist: 'LoneIN',
             imageUrl: '/api/placeholder/300/300',
             audioUrl: '/api/placeholder/audio.mp3'
         };
@@ -501,7 +502,16 @@ onMounted(async () => {
 
 // 方法
 const goBack = () => {
-    router.back();
+    // 检查是否有保存的聊天页面状态
+    const savedChatState = giftStateManager.getChatPageState();
+    
+    if (savedChatState.conversationId) {
+        // 如果有保存的会话ID，直接跳转到对应的聊天页面
+        router.push(`/chat/${savedChatState.conversationId}`);
+    } else {
+        // 否则使用浏览器返回
+        router.back();
+    }
 };
 
 

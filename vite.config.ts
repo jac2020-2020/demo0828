@@ -51,6 +51,12 @@ export default defineConfig({
                     'TT-API-KEY': '15172b1c-cb9e-f173-d293-012f281a9181',
                     'Content-Type': 'application/json'
                 }
+            },
+            '/proxy': {
+                target: 'https://cdn.ttapi.io',
+                changeOrigin: true,
+                secure: true,
+                rewrite: (path) => path.replace(/^\/proxy/, '')
             }
         }
     },
